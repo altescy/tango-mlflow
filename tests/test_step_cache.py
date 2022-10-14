@@ -19,7 +19,7 @@ class SomeFaceStep(Step):
 
 def test_step_cache_artifact_not_found(tmp_path: Path) -> None:
     tango_cache_dir = tmp_path / "tango_cache"
-    mlflow_tracking_uri = f"file:///{tmp_path.absolute() / 'mlruns'}"
+    mlflow_tracking_uri = f"file://{tmp_path.absolute() / 'mlruns'}"
     with mock.patch("tango_mlflow.step_cache.tango_cache_dir", return_value=tango_cache_dir):
         mlflow.set_tracking_uri(mlflow_tracking_uri)
         mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
@@ -31,7 +31,7 @@ def test_step_cache_artifact_not_found(tmp_path: Path) -> None:
 
 def test_step_cache_can_store_result(tmp_path: Path) -> None:
     tango_cache_dir = tmp_path / "tango_cache"
-    mlflow_tracking_uri = f"file:///{tmp_path.absolute() / 'mlruns'}"
+    mlflow_tracking_uri = f"file://{tmp_path.absolute() / 'mlruns'}"
     with mock.patch("tango_mlflow.step_cache.tango_cache_dir", return_value=tango_cache_dir):
         mlflow.set_tracking_uri(mlflow_tracking_uri)
         mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
