@@ -155,8 +155,8 @@ class MLFlowStepCache(LocalStepCache):
                 filter_string="tags.job_type = 'step' AND attributes.status = 'FINISHED'",
                 page_token=page_token,
             )
-            if not runs:
-                break
             count += len(runs)
             page_token = runs.token
+            if runs.token is None:
+                break
         return count

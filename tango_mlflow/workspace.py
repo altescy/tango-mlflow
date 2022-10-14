@@ -269,10 +269,10 @@ class MLFlowWorkspace(Workspace):
                 filter_string=f"tags.job_type = '{RunKind.TANGO_RUN.value}'",
                 page_token=page_token,
             )
-            if not matching_runs:
-                break
             for mlflow_run in matching_runs:
                 runs[mlflow_run.info.run_name] = self._get_run_from_mlflow_run(mlflow_run)
+            if matching_runs.token is None:
+                break
             page_token = matching_runs.token
         return runs
 

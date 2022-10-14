@@ -27,9 +27,7 @@ class TestMlflowWorkspace(TangoTestCase):
             pytest.param(
                 5,
                 id="protocol=5",
-                marks=pytest.mark.skipif(
-                    sys.version_info < (3, 8), reason="Protocol 5 requires Python 3.8 or newer"
-                ),
+                marks=pytest.mark.skipif(sys.version_info < (3, 8), reason="Protocol 5 requires Python 3.8 or newer"),
             ),
         ],
     )
@@ -44,4 +42,3 @@ class TestMlflowWorkspace(TangoTestCase):
         workspace = Workspace.from_url(f"mlflow://{MLFLOW_EXPERIMENT_NAME}")
         assert isinstance(workspace, MLFlowWorkspace)
         assert workspace.experiment_name == MLFLOW_EXPERIMENT_NAME
-
