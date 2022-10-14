@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Optional, Union
 
 import mlflow
-from mlflow.store.artifact.artifact_repo import ArtifactRepository
+from mlflow.entities import Run as MLFlowRun
 from mlflow.tracking.client import MlflowClient
 from tango.common.aliases import PathOrStr
 from tango.common.file_lock import AcquireReturnProxy, FileLock
@@ -16,6 +16,8 @@ from tango.step import Step
 from tango.step_cache import CacheMetadata, StepCache
 from tango.step_caches.local_step_cache import LocalStepCache
 from tango.step_info import StepInfo
+
+from tango_mlflow.util import RunKind
 
 logger = logging.getLogger(__name__)
 
@@ -42,22 +44,21 @@ class MLFlowStepCache(LocalStepCache):
         if objects_dir is not None:
             self.mlflow_client.log_artifacts(run.info.run_id, objects_dir)
 
-    def get_step_result_artifact(self, step: Union[Step, StepInfo]) -> Optional[ArtifactRepository]:
+    def get_step_result_mlflow_run(self, step: Union[Step, StepInfo]) -> Optional[MLFlowRun]:
         experiment = self.mlflow_client.get_experiment_by_name(self.experiment_name)
         runs = self.mlflow_client.search_runs(
             experiment_ids=[experiment.experiment_id],
-            filter_string=" ".join(
+            filter_string=" AND ".join(
                 (
-                    "tags.job_type = 'step'",
-                    f"tags.tango_step_id = '{step.unique_id}'",
+                    f"tags.job_type = '{RunKind.STEP.value}'",
+                    f"tags.step_id = '{step.unique_id}'",
                     "attributes.status = 'FINISHED'",
                 )
             ),
         )
         if not runs:
             return None
-        run = runs[0]
-        return ArtifactRepository(run.info.artifact_uri)
+        return runs[0]
 
     def _acquire_step_lock_file(
         self,
@@ -86,8 +87,8 @@ class MLFlowStepCache(LocalStepCache):
             if self.step_dir(step).is_dir():
                 return True
 
-        artifact = self.get_step_result_artifact(step)
-        return artifact is not None
+        mlflow_run = self.get_step_result_mlflow_run(step)
+        return mlflow_run is not None
 
     def __getitem__(self, step: Union[Step, StepInfo]) -> Any:
         key = step.unique_id
@@ -114,12 +115,12 @@ class MLFlowStepCache(LocalStepCache):
             if self.step_dir(step).is_dir():
                 return load_and_return()
 
-            artifact = self.get_step_result_artifact(step)
-            if artifact is None:
+            mlflow_run = self.get_step_result_mlflow_run(step)
+            if mlflow_run is None:
                 raise KeyError(step)
 
             with tempfile.TemporaryDirectory(dir=self.dir, prefix=key) as temp_dir:
-                artifact.download_artifacts(".", temp_dir)
+                self.mlflow_client.download_artifacts(mlflow_run.info.run_id, "", temp_dir)
                 os.replace(temp_dir, self.step_dir(step))
 
             return load_and_return()
