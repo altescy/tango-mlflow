@@ -151,7 +151,7 @@ class MLFlowWorkspace(Workspace):
         mlflow_run = mlflow.active_run()
         if mlflow_run is None:
             raise RuntimeError(
-                f"{self.__class__.__name__}.step_finished() called outside of a W&B run. "
+                f"{self.__class__.__name__}.step_finished() called outside of a MLflow run. "
                 f"Did you forget to call {self.__class__.__name__}.step_starting() first?"
             )
 
