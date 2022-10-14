@@ -57,7 +57,6 @@ class MLFlowStepCache(LocalStepCache):
         if not runs:
             return None
         run = runs[0]
-        print(run)
         return ArtifactRepository(run.info.artifact_uri)
 
     def _acquire_step_lock_file(
@@ -85,11 +84,9 @@ class MLFlowStepCache(LocalStepCache):
 
         with self._acquire_step_lock_file(step, read_only_ok=True):
             if self.step_dir(step).is_dir():
-                print(self.step_dir(step))
                 return True
 
         artifact = self.get_step_result_artifact(step)
-        print(f"artifact: {artifact}")
         return artifact is not None
 
     def __getitem__(self, step: Union[Step, StepInfo]) -> Any:
