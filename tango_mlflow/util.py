@@ -255,6 +255,16 @@ def add_mlflow_run_of_tango_step(
         artifact_file="step_info.json",
     )
 
+    parent_mlflow_run = get_mlflow_run_by_tango_run(mlflow_client, experiment, tango_run)
+    if parent_mlflow_run is None:
+        raise ValueError(f"Could not find MLflow run for Tango run '{tango_run}'")
+
+    step_url = f"{mlflow.get_tracking_uri()}/#/{experiment.experiment_id}/runs/{mlflow_run.info.run_id}"
+    parent_description = parent_mlflow_run.data.tags.get(MLFLOW_RUN_NOTE)
+    parent_description = parent_description.replace(step_info.unique_id, f"[{step_info.unique_id}]({step_url})")
+
+    mlflow_client.set_tag(parent_mlflow_run.info.run_id, MLFLOW_RUN_NOTE, parent_description)
+
     return mlflow_run
 
 
@@ -263,7 +273,6 @@ def terminate_mlflow_run_of_tango_step(
     experiment: Union[str, MLFlowExperiment],
     status: str,
     step_info: StepInfo,
-    tango_run: Union[str, TangoRun],
 ) -> None:
     if isinstance(experiment, str):
         experiment = mlflow.get_experiment_by_name(experiment)
@@ -282,13 +291,3 @@ def terminate_mlflow_run_of_tango_step(
         status=status,
         end_time=None if step_info.end_time is None else round(1000 * step_info.end_time.timestamp()),
     )
-
-    parent_mlflow_run = get_mlflow_run_by_tango_run(mlflow_client, experiment, tango_run)
-    if parent_mlflow_run is None:
-        raise ValueError(f"Could not find MLflow run for Tango run '{tango_run}'")
-
-    step_url = f"{mlflow.get_tracking_uri()}/#/{experiment.experiment_id}/runs/{mlflow_run.info.run_id}"
-    parent_description = parent_mlflow_run.data.tags.get(MLFLOW_RUN_NOTE)
-    parent_description = parent_description.replace(step_info.unique_id, f"[{step_info.unique_id}]({step_url})")
-
-    mlflow_client.set_tag(parent_mlflow_run.info.run_id, MLFLOW_RUN_NOTE, parent_description)
