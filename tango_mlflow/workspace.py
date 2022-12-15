@@ -8,7 +8,6 @@ from typing import Any, ContextManager, Dict, Iterable, Iterator, Optional, Type
 from urllib.parse import ParseResult
 
 import mlflow
-import petname
 import pytz  # type: ignore
 from mlflow.entities import Run as MLFlowRun
 from mlflow.tracking.client import MlflowClient
@@ -22,7 +21,15 @@ from tango.step_info import StepInfo, StepState
 from tango.workspace import Run, Workspace
 
 from tango_mlflow.step_cache import MLFlowStepCache
-from tango_mlflow.util import RunKind, flatten_dict
+from tango_mlflow.util import (
+    RunKind,
+    add_mlflow_run_of_tango_run,
+    add_mlflow_run_of_tango_step,
+    get_mlflow_run_by_tango_run,
+    get_mlflow_run_by_tango_step,
+    get_mlflow_runs,
+    terminate_mlflow_run_of_tango_step,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +46,7 @@ class MLFlowWorkspace(Workspace):
         self.steps_dir = tango_cache_dir() / "mlflow_workspace"
         self.locks: Dict[Step, FileLock] = {}
         self._running_step_info: Dict[str, StepInfo] = {}
+        self._step_id_to_run_name: Dict[str, str] = {}
 
     def __getstate__(self) -> Dict[str, Any]:
         out = super().__getstate__()  # type: ignore[no-untyped-call]
@@ -110,21 +118,16 @@ class MLFlowWorkspace(Workspace):
             )
 
         try:
-            mlflow_run = mlflow.start_run(
-                run_name=step_info.step_name,
-                nested=True,
-                tags={
-                    "job_type": RunKind.STEP.value,
-                    "step_name": step.name,
-                    "step_id": step.unique_id,
-                },
-                description="\n".join(
-                    (
-                        f"### Tango step ***{step.name}***",
-                        f"- type: {step_info.step_class_name}",
-                        f"- ID: {step.unique_id}",
-                    )
-                ),
+            step_info.start_time = utc_now_datetime()
+            step_info.end_time = None
+            step_info.error = None
+            step_info.result_location = None
+
+            mlflow_run = add_mlflow_run_of_tango_step(
+                self.mlflow_client,
+                self.experiment_name,
+                tango_run=self._step_id_to_run_name[step.unique_id],
+                step_info=step_info,
             )
 
             logger.info(
@@ -135,12 +138,6 @@ class MLFlowWorkspace(Workspace):
                 mlflow_run.info.run_id,
             )
 
-            step_info.start_time = utc_now_datetime()
-            step_info.end_time = None
-            step_info.error = None
-            step_info.result_location = None
-            mlflow.log_params(flatten_dict(step.config))
-            mlflow.log_dict(step_info.to_json_dict(), "step_info.json")
             self._running_step_info[step.unique_id] = step_info
         except:  # noqa: E722
             lock.release()
@@ -148,7 +145,7 @@ class MLFlowWorkspace(Workspace):
             raise
 
     def step_finished(self, step: Step, result: T) -> T:
-        mlflow_run = mlflow.active_run()
+        mlflow_run = get_mlflow_run_by_tango_step(self.mlflow_client, self.experiment_name, step)
         if mlflow_run is None:
             raise RuntimeError(
                 f"{self.__class__.__name__}.step_finished() called outside of a W&B run. "
@@ -172,9 +169,12 @@ class MLFlowWorkspace(Workspace):
                 self.cache.create_step_result_artifact(step)
 
             step_info.end_time = utc_now_datetime()
-            mlflow.log_dict(step_info.to_json_dict(), "step_info.json")
-
-            self.mlflow_client.set_terminated(mlflow_run.info.run_id)
+            terminate_mlflow_run_of_tango_step(
+                self.mlflow_client,
+                self.experiment_name,
+                status="FINISHED",
+                step_info=step_info,
+            )
         finally:
             self.locks[step].release()
             del self.locks[step]
@@ -184,7 +184,7 @@ class MLFlowWorkspace(Workspace):
         return result
 
     def step_failed(self, step: Step, e: BaseException) -> None:
-        mlflow_run = mlflow.active_run()
+        mlflow_run = self.cache.get_mlflow_run(step)
         if mlflow_run is None:
             raise RuntimeError(
                 f"{self.__class__.__name__}.step_finished() called outside of a MLflow run. "
@@ -200,8 +200,12 @@ class MLFlowWorkspace(Workspace):
                 raise StepStateError(step, step_info.state)
             step_info.end_time = utc_now_datetime()
             step_info.error = exception_to_string(e)
-            mlflow.log_dict(step_info.to_json_dict(), "step_info.json")
-            mlflow.end_run(status="FAILED")
+            terminate_mlflow_run_of_tango_step(
+                self.mlflow_client,
+                self.experiment_name,
+                status="FAILED",
+                step_info=step_info,
+            )
         finally:
             self.locks[step].release()
             del self.locks[step]
@@ -213,41 +217,10 @@ class MLFlowWorkspace(Workspace):
         for step in targets:
             all_steps |= step.recursive_dependencies
 
-        step_ids: Dict[str, bool] = {}
-        step_name_to_info: Dict[str, Dict[str, Any]] = {}
-        for step in all_steps:
-            step_info = StepInfo.new_from_step(step)
-            step_name_to_info[step.name] = {k: v for k, v in step_info.to_json_dict().items() if v is not None}
-            step_ids[step.unique_id] = True
-
-        experiment = mlflow.get_experiment_by_name(self.experiment_name)
-
-        description = "# Tango run"
-        cacheable_steps = {step for step in all_steps if step.cache_results}
-        if cacheable_steps:
-            description += "\nCacheable steps:\n"
-            for step in sorted(cacheable_steps, key=lambda step: step.name):
-                description += f"- {step.name}"
-                dependencies = step.dependencies
-                if dependencies:
-                    description += ", depends on: " + ", ".join(
-                        sorted(
-                            [f"'{dep.name}'" for dep in dependencies],
-                        )
-                    )
-                description += f"\n  - {step.unique_id}\n"
-
-        experiment = mlflow.get_experiment_by_name(self.experiment_name)
-        while name is None or self.mlflow_client.search_runs(
-            experiment_ids=[experiment.experiment_id],
-            filter_string=f"tags.job_type = '{RunKind.TANGO_RUN.value}' AND tags.mlflow.runName = '{name}'",
-        ):
-            name = petname.generate()
-
-        mlflow_run = mlflow.start_run(
-            run_name=name,
-            tags={"job_type": RunKind.TANGO_RUN.value},
-            description=description,
+        mlflow_run = add_mlflow_run_of_tango_run(
+            self.mlflow_client,
+            self.experiment_name,
+            all_steps,
         )
 
         logger.info("Registring run %s with MLflow", name)
@@ -258,54 +231,47 @@ class MLFlowWorkspace(Workspace):
             mlflow_run.info.run_id,
         )
 
-        mlflow.log_params(flatten_dict({step.name: step.config for step in all_steps}))
-        mlflow.log_params(flatten_dict({"_step_ids": step_ids}))
-        mlflow.log_dict({"steps": step_name_to_info, "_step_ids": step_ids}, "steps.json")
-
         run = self.registered_run(mlflow_run.data.tags["mlflow.runName"])
 
-        def on_run_end(_: Run) -> None:
-            mlflow_run = mlflow.active_run()
+        for step in all_steps:
+            self._step_id_to_run_name[step.unique_id] = run.name
+
+        def on_run_end(run: Run) -> None:
+            mlflow_run = get_mlflow_run_by_tango_run(
+                self.mlflow_client,
+                self.experiment_name,
+                tango_run=run,
+                additional_filter_string="attributes.status in ('RUNNING', 'SCHEDULED')",
+            )
             if mlflow_run is not None:
-                run = self._get_run_from_mlflow_run(mlflow_run)
+                run = self._get_tango_run_by_mlflow_run(mlflow_run)
                 is_finished = all(step_info.error is None for step_info in run.steps.values())
-                mlflow.end_run(status="FINISHED" if is_finished else "FAILED")
+                self.mlflow_client.set_terminated(
+                    mlflow_run.info.run_id,
+                    status="FINISHED" if is_finished else "FAILED",
+                )
 
         setattr(run, "__del__", on_run_end)
 
         return run
 
     def registered_runs(self) -> Dict[str, Run]:
-        runs: Dict[str, Run] = {}
-        experiment = mlflow.get_experiment_by_name(self.experiment_name)
-        page_token: Optional[str] = None
-        while True:
-            matching_runs = self.mlflow_client.search_runs(
-                experiment_ids=[experiment.experiment_id],
-                filter_string=f"tags.job_type = '{RunKind.TANGO_RUN.value}'",
-                page_token=page_token,
+        return {
+            mlflow_run.data.tags["mlflow.runName"]: self._get_tango_run_by_mlflow_run(mlflow_run)
+            for mlflow_run in get_mlflow_runs(
+                self.mlflow_client,
+                self.experiment_name,
+                run_kind=RunKind.TANGO_RUN,
             )
-            for mlflow_run in matching_runs:
-                run_name = mlflow_run.data.tags["mlflow.runName"]
-                runs[run_name] = self._get_run_from_mlflow_run(mlflow_run)
-            if matching_runs.token is None:
-                break
-            page_token = matching_runs.token
-        return runs
+        }
 
     def registered_run(self, name: str) -> Run:
-        experiment = mlflow.get_experiment_by_name(self.experiment_name)
-        matching_runs = self.mlflow_client.search_runs(
-            experiment_ids=[experiment.experiment_id],
-            filter_string=f"tags.job_type = '{RunKind.TANGO_RUN.value}' AND tags.mlflow.runName = '{name}'",
-        )
-        if not matching_runs:
+        mlflow_run = get_mlflow_run_by_tango_run(self.mlflow_client, self.experiment_name, name)
+        if mlflow_run is None:
             raise KeyError(f"Run '{name}' not found in workspace")
-        elif len(matching_runs) > 1:
-            raise ValueError(f"Found more than one run name '{name}' in MLflow experiment")
-        return self._get_run_from_mlflow_run(matching_runs[0])
+        return self._get_tango_run_by_mlflow_run(mlflow_run)
 
-    def _get_run_from_mlflow_run(self, mlflow_run: MLFlowRun) -> Run:
+    def _get_tango_run_by_mlflow_run(self, mlflow_run: MLFlowRun) -> Run:
         step_name_to_info: Dict[str, StepInfo] = {}
         with tempfile.TemporaryDirectory() as temp_dir:
             artifact_path = Path(self.mlflow_client.download_artifacts(mlflow_run.info.run_id, "", temp_dir))
@@ -327,22 +293,19 @@ class MLFlowWorkspace(Workspace):
         )
 
     def _get_updated_step_info(self, step_id: str, step_name: Optional[str] = None) -> Optional[StepInfo]:
-        experiment = self.mlflow_client.get_experiment_by_name(self.experiment_name)
-        filter_string = f"tags.job_type = '{RunKind.STEP.value}' AND tags.step_id = '{step_id}'"
-        if step_name is not None:
-            filter_string += f" AND tags.step_name = '{step_name}'"
-        matching_runs = self.mlflow_client.search_runs(
-            experiment_ids=[experiment.experiment_id],
-            filter_string=filter_string,
-        )
-
         def load_step_info(mlflow_run: MLFlowRun) -> StepInfo:
             with tempfile.TemporaryDirectory() as temp_dir:
                 path = self.mlflow_client.download_artifacts(mlflow_run.info.run_id, "step_info.json", temp_dir)
                 with open(path, "r") as jsonfile:
                     return StepInfo.from_json_dict(json.load(jsonfile))
 
-        for mlflow_run in matching_runs:
+        for mlflow_run in get_mlflow_runs(
+            self.mlflow_client,
+            self.experiment_name,
+            run_kind=RunKind.STEP,
+            tango_step=step_id,
+            additional_filter_string=None if step_name is None else f"tags.step_name = '{step_name}'",
+        ):
             step_info = load_step_info(mlflow_run)
             if step_info.start_time is None:
                 step_info.start_time = datetime.fromtimestamp(mlflow_run.info.start_time / 1000, tz=pytz.utc)
@@ -361,12 +324,12 @@ class MLFlowWorkspace(Workspace):
                     assert isinstance(step_info_dict, dict)
                     return step_info_dict
 
-        filter_string = f"tags.job_type = '{RunKind.TANGO_RUN.value}' AND params._step_ids.\"{step_id}\" = 'True'"
-        matching_runs = self.mlflow_client.search_runs(
-            experiment_ids=[experiment.experiment_id],
-            filter_string=filter_string,
-        )
-        for mlflow_run in matching_runs:
+        for mlflow_run in get_mlflow_runs(
+            self.mlflow_client,
+            self.experiment_name,
+            run_kind=RunKind.TANGO_RUN,
+            tango_step=step_id,
+        ):
             step_info_dict = load_step_info_dict(mlflow_run)
             if step_name is not None:
                 step_info_data = step_info_dict["steps"][step_name]
@@ -386,7 +349,9 @@ class MLFlowWorkspace(Workspace):
                     with file_handler(log_path) as handler:
                         yield handler
                 finally:
-                    mlflow_run = mlflow.active_run()
+                    mlflow_run = get_mlflow_run_by_tango_run(self.mlflow_client, self.experiment_name, name)
+                    if mlflow_run is None:
+                        raise RuntimeError(f"Run '{name}' not found in workspace")
                     parent_run_id = mlflow_run.data.tags.get("mlflow.parentRunId")
                     if parent_run_id:
                         mlflow_run = self.mlflow_client.get_run(parent_run_id)

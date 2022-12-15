@@ -5,7 +5,6 @@ import tempfile
 from pathlib import Path
 from typing import Any, Optional, Union
 
-import mlflow
 from mlflow.entities import Run as MLFlowRun
 from mlflow.tracking.client import MlflowClient
 from tango.common.aliases import PathOrStr
@@ -17,7 +16,7 @@ from tango.step_cache import CacheMetadata, StepCache
 from tango.step_caches.local_step_cache import LocalStepCache
 from tango.step_info import StepInfo
 
-from tango_mlflow.util import RunKind
+from tango_mlflow.util import RunKind, get_mlflow_run_by_tango_step, get_mlflow_runs
 
 logger = logging.getLogger(__name__)
 
@@ -32,33 +31,29 @@ class MLFlowStepCache(LocalStepCache):
     def mlflow_client(self) -> MlflowClient:
         return MlflowClient()
 
+    def get_step_result_mlflow_run(self, step: Union[Step, StepInfo]) -> Optional[MLFlowRun]:
+        return get_mlflow_run_by_tango_step(
+            self.mlflow_client,
+            self.experiment_name,
+            tango_step=step,
+            additional_filter_string="attributes.status = 'FINISHED'",
+        )
+
     def create_step_result_artifact(
         self,
         step: Union[Step, StepInfo],
         objects_dir: Optional[PathOrStr] = None,
     ) -> None:
-        run = mlflow.active_run()
-        if run is None:
-            raise RuntimeError("Can only add results to the MLFlowStepCache within a MLflow run")
+        mlflow_run = get_mlflow_run_by_tango_step(
+            self.mlflow_client,
+            self.experiment_name,
+            tango_step=step,
+        )
+        if mlflow_run is None:
+            raise RuntimeError(f"No MLflow run found for step: {step.unique_id}")
 
         if objects_dir is not None:
-            self.mlflow_client.log_artifacts(run.info.run_id, objects_dir)
-
-    def get_step_result_mlflow_run(self, step: Union[Step, StepInfo]) -> Optional[MLFlowRun]:
-        experiment = self.mlflow_client.get_experiment_by_name(self.experiment_name)
-        runs = self.mlflow_client.search_runs(
-            experiment_ids=[experiment.experiment_id],
-            filter_string=" AND ".join(
-                (
-                    f"tags.job_type = '{RunKind.STEP.value}'",
-                    f"tags.step_id = '{step.unique_id}'",
-                    "attributes.status = 'FINISHED'",
-                )
-            ),
-        )
-        if not runs:
-            return None
-        return runs[0]
+            self.mlflow_client.log_artifacts(mlflow_run.info.run_id, objects_dir)
 
     def _acquire_step_lock_file(
         self,
@@ -130,9 +125,6 @@ class MLFlowStepCache(LocalStepCache):
             logger.warning("Tried to cache step %s despite being marked as uncacheable.", step.name)
             return
 
-        if not mlflow.active_run():
-            raise RuntimeError("Can only add results to the MLFlowStepCache within a MLflow run")
-
         with self._acquire_step_lock_file(step):
             with tempfile.TemporaryDirectory(dir=self.dir, prefix=step.unique_id) as _temp_dir:
                 temp_dir = Path(_temp_dir)
@@ -147,17 +139,10 @@ class MLFlowStepCache(LocalStepCache):
         self._add_to_cache(step.unique_id, value)
 
     def __len__(self) -> int:
-        count = 0
-        page_token: Optional[str] = None
-        experiment = self.mlflow_client.get_experiment_by_name(self.experiment_name)
-        while True:
-            runs = self.mlflow_client.search_runs(
-                experiment_ids=[experiment.experiment_id],
-                filter_string="tags.job_type = 'step' AND attributes.status = 'FINISHED'",
-                page_token=page_token,
-            )
-            count += len(runs)
-            page_token = runs.token
-            if runs.token is None:
-                break
-        return count
+        mlflow_runs = get_mlflow_runs(
+            self.mlflow_client,
+            self.experiment_name,
+            run_kind=RunKind.STEP,
+            additional_filter_string="attributes.status = 'FINISHED'",
+        )
+        return len(mlflow_runs)

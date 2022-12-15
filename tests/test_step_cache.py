@@ -5,6 +5,7 @@ import mlflow
 from tango.step import Step
 
 from tango_mlflow.step_cache import MLFlowStepCache
+from tango_mlflow.util import RunKind
 
 MLFLOW_EXPERIMENT_NAME = "tango-mlflow-testing"
 
@@ -25,7 +26,6 @@ def test_step_cache_artifact_not_found(tmp_path: Path) -> None:
         mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
         step = SomeFaceStep(step_name="hi there")
         step_cache = MLFlowStepCache(experiment_name=MLFLOW_EXPERIMENT_NAME)
-        print(list(tmp_path.glob("**/*")))
         assert step not in step_cache
 
 
@@ -35,8 +35,16 @@ def test_step_cache_can_store_result(tmp_path: Path) -> None:
     with mock.patch("tango_mlflow.step_cache.tango_cache_dir", return_value=tango_cache_dir):
         mlflow.set_tracking_uri(mlflow_tracking_uri)
         mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
-        with mlflow.start_run():
-            step = SomeFaceStep(step_name="hi there")
+        step_name = "hi there"
+        step_id = "test_step"
+        with mlflow.start_run(
+            tags={
+                "job_type": RunKind.STEP.value,
+                "step_name": step_name,
+                "step_id": step_id,
+            },
+        ):
+            step = SomeFaceStep(step_name=step_name, step_unique_id_override=step_id)
             step_cache = MLFlowStepCache(experiment_name=MLFLOW_EXPERIMENT_NAME)
             step_cache[step] = step.result()
         assert step in step_cache
