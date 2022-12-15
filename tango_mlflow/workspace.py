@@ -184,7 +184,11 @@ class MLFlowWorkspace(Workspace):
         return result
 
     def step_failed(self, step: Step, e: BaseException) -> None:
-        mlflow_run = self.cache.get_mlflow_run(step)
+        mlflow_run = get_mlflow_run_by_tango_step(
+            self.mlflow_client,
+            self.experiment_name,
+            tango_step=step,
+        )
         if mlflow_run is None:
             raise RuntimeError(
                 f"{self.__class__.__name__}.step_finished() called outside of a MLflow run. "

@@ -50,7 +50,7 @@ def build_filter_string(
             conditions.append(f"tags.step_id = '{tango_step_id}'")
     if tango_run is not None:
         tango_run_name = tango_run.name if isinstance(tango_run, TangoRun) else tango_run
-        conditions.append(f"tags.mlflow.runName = '{tango_run_name}'")
+        conditions.append(f"tags.{MLFLOW_RUN_NAME} = '{tango_run_name}'")
     if additional_filter_string is not None:
         conditions.append(additional_filter_string)
     return " AND ".join(conditions)
@@ -240,11 +240,11 @@ def add_mlflow_run_of_tango_step(
                 "job_type": RunKind.STEP.value,
                 "step_name": step_info.step_name,
                 "step_id": step_info.unique_id,
-                MLFLOW_RUN_NAME: step_info.step_class_name,
                 MLFLOW_PARENT_RUN_ID: parent_mlflow_run.info.run_id,
                 MLFLOW_RUN_NOTE: description,
             }
         ),
+        run_name=step_info.step_name,
     )
 
     for key, value in flatten_dict(step_info.config or {}).items():
