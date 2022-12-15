@@ -1,5 +1,6 @@
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Union
+from urllib.parse import urlencode, urljoin
 
 import mlflow
 import petname
@@ -178,7 +179,9 @@ def add_mlflow_run_of_tango_run(
                         [f"'{dep.name}'" for dep in dependencies],
                     )
                 )
-            description += f"\n  - {step.unique_id}\n"
+            query = {"searchInput": f"step_id = '{step.unique_id}'"}
+            url = urljoin(mlflow.get_tracking_uri(), f"/#/experiments/{experiment.experiment_id}/s?{urlencode(query)}")
+            description += f"\n  - [{step.unique_id}]({url})\n"
 
     mlflow_run = mlflow.start_run(
         run_name=run_name,
@@ -254,18 +257,6 @@ def add_mlflow_run_of_tango_step(
         dictionary=step_info.to_json_dict(),
         artifact_file="step_info.json",
     )
-
-    parent_mlflow_run = get_mlflow_run_by_tango_run(mlflow_client, experiment, tango_run)
-    if parent_mlflow_run is None:
-        raise ValueError(f"Could not find MLflow run for Tango run '{tango_run}'")
-
-    step_url = f"{mlflow.get_tracking_uri()}/#/{experiment.experiment_id}/runs/{mlflow_run.info.run_id}"
-    parent_description = parent_mlflow_run.data.tags.get(MLFLOW_RUN_NOTE)
-    parent_description = parent_description.replace(step_info.unique_id, f"[{step_info.unique_id}]({step_url})")
-
-    mlflow_client.set_tag(parent_mlflow_run.info.run_id, MLFLOW_RUN_NOTE, parent_description)
-
-    return mlflow_run
 
 
 def terminate_mlflow_run_of_tango_step(
