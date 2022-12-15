@@ -258,6 +258,8 @@ def add_mlflow_run_of_tango_step(
         artifact_file="step_info.json",
     )
 
+    return mlflow_run
+
 
 def terminate_mlflow_run_of_tango_step(
     mlflow_client: MlflowClient,
