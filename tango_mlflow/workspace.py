@@ -174,6 +174,7 @@ class MLFlowWorkspace(Workspace):
                 self.experiment_name,
                 status="FINISHED",
                 step_info=step_info,
+                tango_run=self._step_id_to_run_name[step.unique_id],
             )
         finally:
             self.locks[step].release()
@@ -209,6 +210,7 @@ class MLFlowWorkspace(Workspace):
                 self.experiment_name,
                 status="FAILED",
                 step_info=step_info,
+                tango_run=self._step_id_to_run_name[step.unique_id],
             )
         finally:
             self.locks[step].release()
