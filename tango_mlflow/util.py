@@ -1,11 +1,13 @@
 from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 import mlflow
 import petname
 from mlflow.entities import Experiment as MLFlowExperiment
 from mlflow.entities import Run as MLFlowRun
+from mlflow.tracking import artifact_utils
 from mlflow.tracking.client import MlflowClient
 from mlflow.tracking.context import registry as context_registry
 from mlflow.utils.mlflow_tags import MLFLOW_PARENT_RUN_ID, MLFLOW_RUN_NAME, MLFLOW_RUN_NOTE
@@ -32,6 +34,23 @@ def flatten_dict(d: Dict[str, Any]) -> Dict[str, Any]:
         else:
             result[key] = value
     return result
+
+
+def is_mlflow_using_local_artifact_storage(
+    mlflow_run: Union[str, MLFlowRun],
+) -> bool:
+    mlflow_run_id = mlflow_run.info.run_id if isinstance(mlflow_run, MLFlowRun) else mlflow_run
+    return str(artifact_utils.get_artifact_uri(run_id=mlflow_run_id)).startswith("file")
+
+
+def get_mlflow_local_artifact_storage_path(
+    mlflow_run: Union[str, MLFlowRun],
+) -> Optional[Path]:
+    mlflow_run_id = mlflow_run.info.run_id if isinstance(mlflow_run, MLFlowRun) else mlflow_run
+    mlflow_artifact_uri = urlparse(artifact_utils.get_artifact_uri(run_id=mlflow_run_id))
+    if mlflow_artifact_uri.scheme == "file":
+        return Path(mlflow_artifact_uri.path)
+    return None
 
 
 def build_filter_string(
