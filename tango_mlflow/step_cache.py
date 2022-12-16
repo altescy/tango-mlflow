@@ -16,7 +16,12 @@ from tango.step_cache import CacheMetadata, StepCache
 from tango.step_caches.local_step_cache import LocalStepCache
 from tango.step_info import StepInfo
 
-from tango_mlflow.util import RunKind, get_mlflow_run_by_tango_step, get_mlflow_runs
+from tango_mlflow.util import (
+    RunKind,
+    get_mlflow_local_artifact_storage_path,
+    get_mlflow_run_by_tango_step,
+    get_mlflow_runs,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +35,22 @@ class MLFlowStepCache(LocalStepCache):
     @property
     def mlflow_client(self) -> MlflowClient:
         return MlflowClient()
+
+    def step_dir(self, step: Union[Step, StepInfo, str]) -> Path:
+        mlflow_run = get_mlflow_run_by_tango_step(
+            self.mlflow_client,
+            self.experiment_name,
+            tango_step=step,
+        )
+        if mlflow_run is None:
+            return super().step_dir(step)
+
+        mlflow_local_artifact_storage_path = get_mlflow_local_artifact_storage_path(mlflow_run)
+
+        if mlflow_local_artifact_storage_path is None:
+            return super().step_dir(step)
+
+        return mlflow_local_artifact_storage_path
 
     def get_step_result_mlflow_run(self, step: Union[Step, StepInfo]) -> Optional[MLFlowRun]:
         return get_mlflow_run_by_tango_step(
