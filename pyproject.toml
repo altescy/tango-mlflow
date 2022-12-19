@@ -7,7 +7,9 @@ authors = ["altescy <altescy@fastmail.com>"]
 [tool.poetry.dependencies]
 python = ">=3.8.1,<4.0"
 ai2-tango = "^1.0.0"
-mlflow = "^1.29.0"
+mlflow = ">=1.28,<3.0"
+llvmlite = "^0.39.1"
+numba = "^0.56.4"
 
 [tool.poetry.dev-dependencies]
 python-language-server = "^0.36.2"
