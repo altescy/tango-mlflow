@@ -20,6 +20,7 @@ from tango.step_cache import StepCache
 from tango.step_info import StepInfo, StepState
 from tango.workspace import Run, Workspace
 
+from tango_mlflow.step import MLflowStep
 from tango_mlflow.step_cache import MLFlowStepCache
 from tango_mlflow.util import (
     RunKind,
@@ -130,6 +131,9 @@ class MLFlowWorkspace(Workspace):
                 step_info=step_info,
             )
 
+            if isinstance(step, MLflowStep):
+                step.setup_mlflow(mlflow_run)
+
             logger.info(
                 "Tracking '%s' step on MLflow: %s/#/experiments/%s/runs/%s",
                 step.name,
@@ -175,6 +179,27 @@ class MLFlowWorkspace(Workspace):
                 status="FINISHED",
                 step_info=step_info,
             )
+
+            # Log the result of summary step to a parent mlflow run
+            if isinstance(step, MLflowStep) and step.MLFLOW_SUMMARY:
+                if not isinstance(result, dict):
+                    raise ValueError(
+                        f"Result value of MLflowStep {step.name} with MLFLOW_SUMMARY=True"
+                        f"must be a dict, but got {type(result)}"
+                    )
+
+                mlflow_run_of_tang_run = get_mlflow_run_by_tango_run(
+                    self.mlflow_client,
+                    self.experiment_name,
+                    tango_run=self._step_id_to_run_name[step.unique_id],
+                )
+                if mlflow_run_of_tang_run is None:
+                    raise RuntimeError(
+                        f"Could not find MLflow run for Tango run {self._step_id_to_run_name[step.unique_id]}"
+                    )
+
+                for key, value in result.items():
+                    self.mlflow_client.log_metric(mlflow_run_of_tang_run.info.run_id, key, value)
         finally:
             self.locks[step].release()
             del self.locks[step]
@@ -280,7 +305,7 @@ class MLFlowWorkspace(Workspace):
         with tempfile.TemporaryDirectory() as temp_dir:
             artifact_path = Path(self.mlflow_client.download_artifacts(mlflow_run.info.run_id, "", temp_dir))
             steps_json_path = artifact_path / "steps.json"
-            with open(steps_json_path, "r") as jsonfile:
+            with steps_json_path.open("r") as jsonfile:
                 for step_name, step_info_dict in json.load(jsonfile)["steps"].items():
                     step_info = StepInfo.from_json_dict(step_info_dict)
                     if step_info.cacheable:
