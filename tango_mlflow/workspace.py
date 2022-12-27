@@ -179,6 +179,27 @@ class MLFlowWorkspace(Workspace):
                 status="FINISHED",
                 step_info=step_info,
             )
+
+            # Log the result of summary step to a parent mlflow run
+            if isinstance(step, MLflowStep) and step.MLFLOW_SUMMARY:
+                if not isinstance(result, dict):
+                    raise ValueError(
+                        f"Result value of MLflowStep {step.name} with MLFLOW_SUMMARY=True"
+                        f"must be a dict, but got {type(result)}"
+                    )
+
+                mlflow_run_of_tang_run = get_mlflow_run_by_tango_run(
+                    self.mlflow_client,
+                    self.experiment_name,
+                    tango_run=self._step_id_to_run_name[step.unique_id],
+                )
+                if mlflow_run_of_tang_run is None:
+                    raise RuntimeError(
+                        f"Could not find MLflow run for Tango run {self._step_id_to_run_name[step.unique_id]}"
+                    )
+
+                for key, value in result.items():
+                    self.mlflow_client.log_metric(mlflow_run_of_tang_run.info.run_id, key, value)
         finally:
             self.locks[step].release()
             del self.locks[step]

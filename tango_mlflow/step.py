@@ -40,6 +40,8 @@ class MLflowLogger:
 
 
 class MLflowStep(Step[T]):
+    MLFLOW_SUMMARY: bool = True
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._mlflow_run: Optional[MLflowRun] = None
