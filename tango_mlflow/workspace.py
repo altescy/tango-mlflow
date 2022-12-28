@@ -304,7 +304,13 @@ class MLFlowWorkspace(Workspace):
     def _get_tango_run_by_mlflow_run(self, mlflow_run: MLFlowRun) -> Run:
         step_name_to_info: Dict[str, StepInfo] = {}
         with tempfile.TemporaryDirectory() as temp_dir:
-            artifact_path = Path(self.mlflow_client.download_artifacts(mlflow_run.info.run_id, "", temp_dir))
+            artifact_path = Path(
+                mlflow.artifacts.download_artifacts(
+                    run_id=mlflow_run.info.run_id,
+                    artifact_path="",
+                    dst_path=temp_dir,
+                )
+            )
             steps_json_path = artifact_path / "steps.json"
             with steps_json_path.open("r") as jsonfile:
                 for step_name, step_info_dict in json.load(jsonfile)["steps"].items():
@@ -325,7 +331,11 @@ class MLFlowWorkspace(Workspace):
     def _get_updated_step_info(self, step_id: str, step_name: Optional[str] = None) -> Optional[StepInfo]:
         def load_step_info(mlflow_run: MLFlowRun) -> StepInfo:
             with tempfile.TemporaryDirectory() as temp_dir:
-                path = self.mlflow_client.download_artifacts(mlflow_run.info.run_id, "step_info.json", temp_dir)
+                path = mlflow.artifacts.download_artifacts(
+                    run_id=mlflow_run.info.run_id,
+                    artifact_path="step_info.json",
+                    dst_path=temp_dir,
+                )
                 with open(path, "r") as jsonfile:
                     return StepInfo.from_json_dict(json.load(jsonfile))
 
@@ -348,7 +358,11 @@ class MLFlowWorkspace(Workspace):
 
         def load_step_info_dict(mlflow_run: MLFlowRun) -> Dict[str, Any]:
             with tempfile.TemporaryDirectory() as temp_dir:
-                path = self.mlflow_client.download_artifacts(mlflow_run.info.run_id, "steps.json", temp_dir)
+                path = mlflow.artifacts.download_artifacts(
+                    run_id=mlflow_run.info.run_id,
+                    artifact_path="steps.json",
+                    dst_path=temp_dir,
+                )
                 with open(path, "r") as jsonfile:
                     step_info_dict = json.load(jsonfile)
                     assert isinstance(step_info_dict, dict)
