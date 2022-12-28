@@ -250,7 +250,8 @@ class MLFlowWorkspace(Workspace):
         mlflow_run = add_mlflow_run_of_tango_run(
             self.mlflow_client,
             self.experiment_name,
-            all_steps,
+            steps=all_steps,
+            run_name=name,
         )
 
         logger.info("Registring run %s with MLflow", name)

@@ -177,13 +177,15 @@ def add_mlflow_run_of_tango_run(
     mlflow_client: MlflowClient,
     experiment: Union[str, MLFlowExperiment],
     steps: Set[Step],
+    run_name: Optional[str] = None,
     mlflow_tags: Optional[Dict[str, str]] = None,
 ) -> MLFlowRun:
     if isinstance(experiment, str):
         experiment = mlflow.get_experiment_by_name(experiment)
 
     # generate a unique run name
-    run_name = generate_unique_run_name(mlflow_client, experiment)
+    if run_name is None:
+        run_name = generate_unique_run_name(mlflow_client, experiment)
 
     # build description of the run
     description = "# Tango run"
