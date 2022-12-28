@@ -266,24 +266,37 @@ class MLFlowWorkspace(Workspace):
         for step in all_steps:
             self._step_id_to_run_name[step.unique_id] = run.name
 
-        def on_run_end(run: Run) -> None:
-            mlflow_run = get_mlflow_run_by_tango_run(
-                self.mlflow_client,
-                self.experiment_name,
-                tango_run=run,
-                additional_filter_string="attributes.status in ('RUNNING', 'SCHEDULED')",
-            )
-            if mlflow_run is not None:
-                run = self._get_tango_run_by_mlflow_run(mlflow_run)
-                is_finished = all(step_info.error is None for step_info in run.steps.values())
-                self.mlflow_client.set_terminated(
-                    mlflow_run.info.run_id,
-                    status="FINISHED" if is_finished else "FAILED",
-                )
-
-        setattr(run, "__del__", on_run_end)
+        setattr(run, "__del__", self.terminate_run)
 
         return run
+
+    def terminate_run(self, run: Union[str, Run]) -> None:
+        mlflow_run = get_mlflow_run_by_tango_run(
+            self.mlflow_client,
+            self.experiment_name,
+            tango_run=run,
+            additional_filter_string=" AND ".join(
+                (
+                    "attributes.status != 'FINISHED'",
+                    "attributes.status != 'FAILED'",
+                    "attributes.status != 'KILLED'",
+                )
+            ),
+        )
+        if mlflow_run is not None:
+            run = self._get_tango_run_by_mlflow_run(mlflow_run)
+            status = "FINISHED"
+            for step_info in run.steps.values():
+                updated_step_info = self._get_updated_step_info(step_info.unique_id)
+                if updated_step_info is None:
+                    raise KeyError(step_info.unique_id)
+                if updated_step_info.error is not None:
+                    status = "FAILED"
+                    break
+            self.mlflow_client.set_terminated(
+                mlflow_run.info.run_id,
+                status=status,
+            )
 
     def registered_runs(self) -> Dict[str, Run]:
         return {
