@@ -45,6 +45,7 @@ class MLFlowWorkspace(Workspace):
         self,
         experiment_name: str,
         tags: Optional[Dict[str, str]] = None,
+        tracking_uri: Optional[str] = None,
     ) -> None:
         mlflow.set_experiment(experiment_name)
         super().__init__()  # type: ignore[no-untyped-call]
@@ -55,6 +56,10 @@ class MLFlowWorkspace(Workspace):
         self._running_step_info: Dict[str, StepInfo] = {}
         self._step_id_to_run_name: Dict[str, str] = {}
         self._mlflow_tags = dict(sorted(tags.items())) if tags else {}
+        self._mlflow_tracking_uri = tracking_uri
+
+        if self._mlflow_tracking_uri is not None:
+            mlflow.set_tracking_uri(tracking_uri)
 
     def __getstate__(self) -> Dict[str, Any]:
         out = super().__getstate__()  # type: ignore[no-untyped-call]
@@ -66,18 +71,28 @@ class MLFlowWorkspace(Workspace):
         url = f"mlflow://{self.experiment_name}"
         if self._mlflow_tags:
             url += f"?tags={quote(json.dumps(self._mlflow_tags))}"
+        if self._mlflow_tracking_uri is not None:
+            url += f"&tracking_uri={quote(self._mlflow_tracking_uri)}"
         return url
 
     @classmethod
     def from_parsed_url(cls, parsed_url: ParseResult) -> "MLFlowWorkspace":
+        queries = parse_qs(parsed_url.query)
         experiment_name = parsed_url.netloc
         tags: Dict[str, Any] = {}
-        for json_strng in parse_qs(parsed_url.query).get("tags", []):
+        for json_strng in queries.get("tags", []):
             subtags = json.loads(json_strng)
             if not isinstance(subtags, dict):
                 raise ValueError(f"Invalid tags: {subtags}")
             tags.update(subtags)
-        return cls(experiment_name=experiment_name, tags=tags)
+        tracking_uri: Optional[str] = None
+        for uri in queries.get("tracking_uri", []):
+            tracking_uri = uri
+        return cls(
+            experiment_name=experiment_name,
+            tags=tags,
+            tracking_uri=tracking_uri,
+        )
 
     @property
     def step_cache(self) -> StepCache:
