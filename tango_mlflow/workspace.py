@@ -5,12 +5,13 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any, ContextManager, Dict, Iterable, Iterator, Optional, TypeVar, Union, cast
-from urllib.parse import ParseResult
+from urllib.parse import ParseResult, parse_qs, quote
 
 import mlflow
 import pytz  # type: ignore
 from mlflow.entities import Run as MLFlowRun
 from mlflow.tracking.client import MlflowClient
+from mlflow.utils.mlflow_tags import MLFLOW_PARENT_RUN_ID, MLFLOW_RUN_NAME
 from tango.common.exceptions import StepStateError
 from tango.common.file_lock import FileLock
 from tango.common.logging import file_handler
@@ -20,12 +21,13 @@ from tango.step_cache import StepCache
 from tango.step_info import StepInfo, StepState
 from tango.workspace import Run, Workspace
 
-from tango_mlflow.step import MLflowStep
+from tango_mlflow.step import MLflowStep, MLflowSummaryStep
 from tango_mlflow.step_cache import MLFlowStepCache
 from tango_mlflow.util import (
     RunKind,
     add_mlflow_run_of_tango_run,
     add_mlflow_run_of_tango_step,
+    flatten_dict,
     get_mlflow_run_by_tango_run,
     get_mlflow_run_by_tango_step,
     get_mlflow_runs,
@@ -39,7 +41,12 @@ T = TypeVar("T")
 
 @Workspace.register("mlflow")
 class MLFlowWorkspace(Workspace):
-    def __init__(self, experiment_name: str) -> None:
+    def __init__(
+        self,
+        experiment_name: str,
+        tags: Optional[Dict[str, str]] = None,
+        tracking_uri: Optional[str] = None,
+    ) -> None:
         mlflow.set_experiment(experiment_name)
         super().__init__()  # type: ignore[no-untyped-call]
         self.experiment_name = experiment_name
@@ -48,6 +55,11 @@ class MLFlowWorkspace(Workspace):
         self.locks: Dict[Step, FileLock] = {}
         self._running_step_info: Dict[str, StepInfo] = {}
         self._step_id_to_run_name: Dict[str, str] = {}
+        self._mlflow_tags = dict(sorted(tags.items())) if tags else {}
+        self._mlflow_tracking_uri = tracking_uri
+
+        if self._mlflow_tracking_uri is not None:
+            mlflow.set_tracking_uri(tracking_uri)
 
     def __getstate__(self) -> Dict[str, Any]:
         out = super().__getstate__()  # type: ignore[no-untyped-call]
@@ -56,12 +68,31 @@ class MLFlowWorkspace(Workspace):
 
     @property
     def url(self) -> str:
-        return f"mlflow://{self.experiment_name}"
+        url = f"mlflow://{self.experiment_name}"
+        if self._mlflow_tags:
+            url += f"?tags={quote(json.dumps(self._mlflow_tags))}"
+        if self._mlflow_tracking_uri is not None:
+            url += f"&tracking_uri={quote(self._mlflow_tracking_uri)}"
+        return url
 
     @classmethod
     def from_parsed_url(cls, parsed_url: ParseResult) -> "MLFlowWorkspace":
+        queries = parse_qs(parsed_url.query)
         experiment_name = parsed_url.netloc
-        return cls(experiment_name=experiment_name)
+        tags: Dict[str, Any] = {}
+        for json_strng in queries.get("tags", []):
+            subtags = json.loads(json_strng)
+            if not isinstance(subtags, dict):
+                raise ValueError(f"Invalid tags: {subtags}")
+            tags.update(subtags)
+        tracking_uri: Optional[str] = None
+        for uri in queries.get("tracking_uri", []):
+            tracking_uri = uri
+        return cls(
+            experiment_name=experiment_name,
+            tags=tags,
+            tracking_uri=tracking_uri,
+        )
 
     @property
     def step_cache(self) -> StepCache:
@@ -181,10 +212,10 @@ class MLFlowWorkspace(Workspace):
             )
 
             # Log the result of summary step to a parent mlflow run
-            if isinstance(step, MLflowStep) and step.MLFLOW_SUMMARY:
+            if isinstance(step, MLflowSummaryStep) and step.MLFLOW_SUMMARY:
                 if not isinstance(result, dict):
                     raise ValueError(
-                        f"Result value of MLflowStep {step.name} with MLFLOW_SUMMARY=True"
+                        f"Result value of Step {step.name} with MLFLOW_SUMMARY=True"
                         f"must be a dict, but got {type(result)}"
                     )
 
@@ -198,7 +229,7 @@ class MLFlowWorkspace(Workspace):
                         f"Could not find MLflow run for Tango run {self._step_id_to_run_name[step.unique_id]}"
                     )
 
-                for key, value in result.items():
+                for key, value in flatten_dict({step.name: result}).items():
                     self.mlflow_client.log_metric(mlflow_run_of_tang_run.info.run_id, key, value)
         finally:
             self.locks[step].release()
@@ -249,7 +280,9 @@ class MLFlowWorkspace(Workspace):
         mlflow_run = add_mlflow_run_of_tango_run(
             self.mlflow_client,
             self.experiment_name,
-            all_steps,
+            steps=all_steps,
+            run_name=name,
+            mlflow_tags=self._mlflow_tags,
         )
 
         logger.info("Registring run %s with MLflow", name)
@@ -260,33 +293,46 @@ class MLFlowWorkspace(Workspace):
             mlflow_run.info.run_id,
         )
 
-        run = self.registered_run(mlflow_run.data.tags["mlflow.runName"])
+        run = self.registered_run(mlflow_run.data.tags[MLFLOW_RUN_NAME])
 
         for step in all_steps:
             self._step_id_to_run_name[step.unique_id] = run.name
 
-        def on_run_end(run: Run) -> None:
-            mlflow_run = get_mlflow_run_by_tango_run(
-                self.mlflow_client,
-                self.experiment_name,
-                tango_run=run,
-                additional_filter_string="attributes.status in ('RUNNING', 'SCHEDULED')",
-            )
-            if mlflow_run is not None:
-                run = self._get_tango_run_by_mlflow_run(mlflow_run)
-                is_finished = all(step_info.error is None for step_info in run.steps.values())
-                self.mlflow_client.set_terminated(
-                    mlflow_run.info.run_id,
-                    status="FINISHED" if is_finished else "FAILED",
-                )
-
-        setattr(run, "__del__", on_run_end)
+        setattr(run, "__del__", self.terminate_run)
 
         return run
 
+    def terminate_run(self, run: Union[str, Run]) -> None:
+        mlflow_run = get_mlflow_run_by_tango_run(
+            self.mlflow_client,
+            self.experiment_name,
+            tango_run=run,
+            additional_filter_string=" AND ".join(
+                (
+                    "attributes.status != 'FINISHED'",
+                    "attributes.status != 'FAILED'",
+                    "attributes.status != 'KILLED'",
+                )
+            ),
+        )
+        if mlflow_run is not None:
+            run = self._get_tango_run_by_mlflow_run(mlflow_run)
+            status = "FINISHED"
+            for step_info in run.steps.values():
+                updated_step_info = self._get_updated_step_info(step_info.unique_id)
+                if updated_step_info is None:
+                    raise KeyError(step_info.unique_id)
+                if updated_step_info.error is not None:
+                    status = "FAILED"
+                    break
+            self.mlflow_client.set_terminated(
+                mlflow_run.info.run_id,
+                status=status,
+            )
+
     def registered_runs(self) -> Dict[str, Run]:
         return {
-            mlflow_run.data.tags["mlflow.runName"]: self._get_tango_run_by_mlflow_run(mlflow_run)
+            mlflow_run.data.tags[MLFLOW_RUN_NAME]: self._get_tango_run_by_mlflow_run(mlflow_run)
             for mlflow_run in get_mlflow_runs(
                 self.mlflow_client,
                 self.experiment_name,
@@ -303,7 +349,13 @@ class MLFlowWorkspace(Workspace):
     def _get_tango_run_by_mlflow_run(self, mlflow_run: MLFlowRun) -> Run:
         step_name_to_info: Dict[str, StepInfo] = {}
         with tempfile.TemporaryDirectory() as temp_dir:
-            artifact_path = Path(self.mlflow_client.download_artifacts(mlflow_run.info.run_id, "", temp_dir))
+            artifact_path = Path(
+                mlflow.artifacts.download_artifacts(
+                    run_id=mlflow_run.info.run_id,
+                    artifact_path="",
+                    dst_path=temp_dir,
+                )
+            )
             steps_json_path = artifact_path / "steps.json"
             with steps_json_path.open("r") as jsonfile:
                 for step_name, step_info_dict in json.load(jsonfile)["steps"].items():
@@ -314,7 +366,7 @@ class MLFlowWorkspace(Workspace):
                             step_info = updated_step_info
                     step_name_to_info[step_name] = step_info
 
-        run_name = mlflow_run.data.tags["mlflow.runName"]
+        run_name = mlflow_run.data.tags[MLFLOW_RUN_NAME]
         return Run(
             name=run_name,
             steps=step_name_to_info,
@@ -324,7 +376,11 @@ class MLFlowWorkspace(Workspace):
     def _get_updated_step_info(self, step_id: str, step_name: Optional[str] = None) -> Optional[StepInfo]:
         def load_step_info(mlflow_run: MLFlowRun) -> StepInfo:
             with tempfile.TemporaryDirectory() as temp_dir:
-                path = self.mlflow_client.download_artifacts(mlflow_run.info.run_id, "step_info.json", temp_dir)
+                path = mlflow.artifacts.download_artifacts(
+                    run_id=mlflow_run.info.run_id,
+                    artifact_path="step_info.json",
+                    dst_path=temp_dir,
+                )
                 with open(path, "r") as jsonfile:
                     return StepInfo.from_json_dict(json.load(jsonfile))
 
@@ -347,7 +403,11 @@ class MLFlowWorkspace(Workspace):
 
         def load_step_info_dict(mlflow_run: MLFlowRun) -> Dict[str, Any]:
             with tempfile.TemporaryDirectory() as temp_dir:
-                path = self.mlflow_client.download_artifacts(mlflow_run.info.run_id, "steps.json", temp_dir)
+                path = mlflow.artifacts.download_artifacts(
+                    run_id=mlflow_run.info.run_id,
+                    artifact_path="steps.json",
+                    dst_path=temp_dir,
+                )
                 with open(path, "r") as jsonfile:
                     step_info_dict = json.load(jsonfile)
                     assert isinstance(step_info_dict, dict)
@@ -381,7 +441,7 @@ class MLFlowWorkspace(Workspace):
                     mlflow_run = get_mlflow_run_by_tango_run(self.mlflow_client, self.experiment_name, name)
                     if mlflow_run is None:
                         raise RuntimeError(f"Run '{name}' not found in workspace")
-                    parent_run_id = mlflow_run.data.tags.get("mlflow.parentRunId")
+                    parent_run_id = mlflow_run.data.tags.get(MLFLOW_PARENT_RUN_ID)
                     if parent_run_id:
                         mlflow_run = self.mlflow_client.get_run(parent_run_id)
                     self.mlflow_client.log_artifact(mlflow_run.info.run_id, str(log_path))

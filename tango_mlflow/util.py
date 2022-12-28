@@ -177,12 +177,15 @@ def add_mlflow_run_of_tango_run(
     mlflow_client: MlflowClient,
     experiment: Union[str, MLFlowExperiment],
     steps: Set[Step],
+    run_name: Optional[str] = None,
+    mlflow_tags: Optional[Dict[str, str]] = None,
 ) -> MLFlowRun:
     if isinstance(experiment, str):
         experiment = mlflow.get_experiment_by_name(experiment)
 
     # generate a unique run name
-    run_name = generate_unique_run_name(mlflow_client, experiment)
+    if run_name is None:
+        run_name = generate_unique_run_name(mlflow_client, experiment)
 
     # build description of the run
     description = "# Tango run"
@@ -202,10 +205,17 @@ def add_mlflow_run_of_tango_run(
             url = f"/#/experiments/{experiment.experiment_id}/s?{urlencode(query)}"
             description += f"\n  - [{step.unique_id}]({url})\n"
 
-    mlflow_run = mlflow.start_run(
+    mlflow_run = mlflow_client.create_run(
+        experiment_id=experiment.experiment_id,
+        tags=context_registry.resolve_tags(
+            {
+                "job_type": RunKind.TANGO_RUN.value,
+                MLFLOW_RUN_NAME: run_name,
+                MLFLOW_RUN_NOTE: description,
+                **(mlflow_tags or {}),
+            }
+        ),
         run_name=run_name,
-        tags={"job_type": RunKind.TANGO_RUN.value},
-        description=description,
     )
 
     step_ids: Dict[str, bool] = {}
@@ -262,6 +272,7 @@ def add_mlflow_run_of_tango_step(
                 "job_type": RunKind.STEP.value,
                 "step_name": step_info.step_name,
                 "step_id": step_info.unique_id,
+                MLFLOW_RUN_NAME: step_info.step_name,
                 MLFLOW_PARENT_RUN_ID: parent_mlflow_run.info.run_id,
                 MLFLOW_RUN_NOTE: description,
             }

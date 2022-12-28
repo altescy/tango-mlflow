@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Optional, Union
 
+import mlflow
 from mlflow.entities import Run as MLFlowRun
 from mlflow.tracking.client import MlflowClient
 from tango.common.aliases import PathOrStr
@@ -136,7 +137,11 @@ class MLFlowStepCache(LocalStepCache):
                 raise KeyError(step)
 
             with tempfile.TemporaryDirectory(dir=self.dir, prefix=key) as temp_dir:
-                self.mlflow_client.download_artifacts(mlflow_run.info.run_id, "", temp_dir)
+                mlflow.artifacts.download_artifacts(
+                    run_id=mlflow_run.info.run_id,
+                    artifact_path="",
+                    dst_path=temp_dir,
+                )
                 os.replace(temp_dir, self.step_dir(step))
 
             return load_and_return()
