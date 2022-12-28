@@ -21,7 +21,7 @@ from tango.step_cache import StepCache
 from tango.step_info import StepInfo, StepState
 from tango.workspace import Run, Workspace
 
-from tango_mlflow.step import MLflowStep
+from tango_mlflow.step import MLflowStep, MLflowSummaryStep
 from tango_mlflow.step_cache import MLFlowStepCache
 from tango_mlflow.util import (
     RunKind,
@@ -212,7 +212,7 @@ class MLFlowWorkspace(Workspace):
             )
 
             # Log the result of summary step to a parent mlflow run
-            if isinstance(step, MLflowStep) and step.MLFLOW_SUMMARY:
+            if isinstance(step, MLflowSummaryStep) and step.MLFLOW_SUMMARY:
                 if not isinstance(result, dict):
                     raise ValueError(
                         f"Result value of MLflowStep {step.name} with MLFLOW_SUMMARY=True"

@@ -1,10 +1,16 @@
-from typing import Any, Dict, Optional, TypeVar
+import typing
+from typing import Any, Dict, Optional, Protocol, TypeVar
 
 from mlflow.entities import Run as MLflowRun
 from mlflow.tracking import MlflowClient
 from tango.step import Step
 
 T = TypeVar("T")
+
+
+@typing.runtime_checkable
+class MLflowSummaryStep(Protocol):
+    MLFLOW_SUMMARY: bool
 
 
 class MLflowLogger:
@@ -40,7 +46,7 @@ class MLflowLogger:
 
 
 class MLflowStep(Step[T]):
-    MLFLOW_SUMMARY: bool = True
+    MLFLOW_SUMMARY: bool = False
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
