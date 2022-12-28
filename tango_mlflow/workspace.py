@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any, ContextManager, Dict, Iterable, Iterator, Optional, TypeVar, Union, cast
-from urllib.parse import ParseResult
+from urllib.parse import ParseResult, parse_qs, quote
 
 import mlflow
 import pytz  # type: ignore
@@ -41,7 +41,11 @@ T = TypeVar("T")
 
 @Workspace.register("mlflow")
 class MLFlowWorkspace(Workspace):
-    def __init__(self, experiment_name: str) -> None:
+    def __init__(
+        self,
+        experiment_name: str,
+        tags: Optional[Dict[str, str]] = None,
+    ) -> None:
         mlflow.set_experiment(experiment_name)
         super().__init__()  # type: ignore[no-untyped-call]
         self.experiment_name = experiment_name
@@ -50,6 +54,7 @@ class MLFlowWorkspace(Workspace):
         self.locks: Dict[Step, FileLock] = {}
         self._running_step_info: Dict[str, StepInfo] = {}
         self._step_id_to_run_name: Dict[str, str] = {}
+        self._mlflow_tags = dict(sorted(tags.items())) if tags else {}
 
     def __getstate__(self) -> Dict[str, Any]:
         out = super().__getstate__()  # type: ignore[no-untyped-call]
@@ -58,12 +63,21 @@ class MLFlowWorkspace(Workspace):
 
     @property
     def url(self) -> str:
-        return f"mlflow://{self.experiment_name}"
+        url = f"mlflow://{self.experiment_name}"
+        if self._mlflow_tags:
+            url += f"?tags={quote(json.dumps(self._mlflow_tags))}"
+        return url
 
     @classmethod
     def from_parsed_url(cls, parsed_url: ParseResult) -> "MLFlowWorkspace":
         experiment_name = parsed_url.netloc
-        return cls(experiment_name=experiment_name)
+        tags: Dict[str, Any] = {}
+        for json_strng in parse_qs(parsed_url.query).get("tags", []):
+            subtags = json.loads(json_strng)
+            if not isinstance(subtags, dict):
+                raise ValueError(f"Invalid tags: {subtags}")
+            tags.update(subtags)
+        return cls(experiment_name=experiment_name, tags=tags)
 
     @property
     def step_cache(self) -> StepCache:
@@ -253,6 +267,7 @@ class MLFlowWorkspace(Workspace):
             self.experiment_name,
             steps=all_steps,
             run_name=name,
+            mlflow_tags=self._mlflow_tags,
         )
 
         logger.info("Registring run %s with MLflow", name)
