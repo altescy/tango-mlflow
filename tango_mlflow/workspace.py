@@ -215,7 +215,7 @@ class MLFlowWorkspace(Workspace):
             if isinstance(step, MLflowSummaryStep) and step.MLFLOW_SUMMARY:
                 if not isinstance(result, dict):
                     raise ValueError(
-                        f"Result value of MLflowStep {step.name} with MLFLOW_SUMMARY=True"
+                        f"Result value of Step {step.name} with MLFLOW_SUMMARY=True"
                         f"must be a dict, but got {type(result)}"
                     )
 
