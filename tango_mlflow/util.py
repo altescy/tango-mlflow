@@ -177,6 +177,7 @@ def add_mlflow_run_of_tango_run(
     mlflow_client: MlflowClient,
     experiment: Union[str, MLFlowExperiment],
     steps: Set[Step],
+    mlflow_tags: Optional[Dict[str, str]] = None,
 ) -> MLFlowRun:
     if isinstance(experiment, str):
         experiment = mlflow.get_experiment_by_name(experiment)
@@ -202,10 +203,17 @@ def add_mlflow_run_of_tango_run(
             url = f"/#/experiments/{experiment.experiment_id}/s?{urlencode(query)}"
             description += f"\n  - [{step.unique_id}]({url})\n"
 
-    mlflow_run = mlflow.start_run(
+    mlflow_run = mlflow_client.create_run(
+        experiment_id=experiment.experiment_id,
+        tags=context_registry.resolve_tags(
+            {
+                "job_type": RunKind.TANGO_RUN.value,
+                MLFLOW_RUN_NAME: run_name,
+                MLFLOW_RUN_NOTE: description,
+                **(mlflow_tags or {}),
+            }
+        ),
         run_name=run_name,
-        tags={"job_type": RunKind.TANGO_RUN.value},
-        description=description,
     )
 
     step_ids: Dict[str, bool] = {}
