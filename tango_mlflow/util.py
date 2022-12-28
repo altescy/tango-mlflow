@@ -270,6 +270,7 @@ def add_mlflow_run_of_tango_step(
                 "job_type": RunKind.STEP.value,
                 "step_name": step_info.step_name,
                 "step_id": step_info.unique_id,
+                MLFLOW_RUN_NAME: step_info.step_name,
                 MLFLOW_PARENT_RUN_ID: parent_mlflow_run.info.run_id,
                 MLFLOW_RUN_NOTE: description,
             }
