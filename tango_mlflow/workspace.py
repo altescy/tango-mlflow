@@ -11,6 +11,7 @@ import mlflow
 import pytz  # type: ignore
 from mlflow.entities import Run as MLFlowRun
 from mlflow.tracking.client import MlflowClient
+from mlflow.utils.mlflow_tags import MLFLOW_PARENT_RUN_ID, MLFLOW_RUN_NAME
 from tango.common.exceptions import StepStateError
 from tango.common.file_lock import FileLock
 from tango.common.logging import file_handler
@@ -262,7 +263,7 @@ class MLFlowWorkspace(Workspace):
             mlflow_run.info.run_id,
         )
 
-        run = self.registered_run(mlflow_run.data.tags["mlflow.runName"])
+        run = self.registered_run(mlflow_run.data.tags[MLFLOW_RUN_NAME])
 
         for step in all_steps:
             self._step_id_to_run_name[step.unique_id] = run.name
@@ -301,7 +302,7 @@ class MLFlowWorkspace(Workspace):
 
     def registered_runs(self) -> Dict[str, Run]:
         return {
-            mlflow_run.data.tags["mlflow.runName"]: self._get_tango_run_by_mlflow_run(mlflow_run)
+            mlflow_run.data.tags[MLFLOW_RUN_NAME]: self._get_tango_run_by_mlflow_run(mlflow_run)
             for mlflow_run in get_mlflow_runs(
                 self.mlflow_client,
                 self.experiment_name,
@@ -335,7 +336,7 @@ class MLFlowWorkspace(Workspace):
                             step_info = updated_step_info
                     step_name_to_info[step_name] = step_info
 
-        run_name = mlflow_run.data.tags["mlflow.runName"]
+        run_name = mlflow_run.data.tags[MLFLOW_RUN_NAME]
         return Run(
             name=run_name,
             steps=step_name_to_info,
@@ -410,7 +411,7 @@ class MLFlowWorkspace(Workspace):
                     mlflow_run = get_mlflow_run_by_tango_run(self.mlflow_client, self.experiment_name, name)
                     if mlflow_run is None:
                         raise RuntimeError(f"Run '{name}' not found in workspace")
-                    parent_run_id = mlflow_run.data.tags.get("mlflow.parentRunId")
+                    parent_run_id = mlflow_run.data.tags.get(MLFLOW_PARENT_RUN_ID)
                     if parent_run_id:
                         mlflow_run = self.mlflow_client.get_run(parent_run_id)
                     self.mlflow_client.log_artifact(mlflow_run.info.run_id, str(log_path))
