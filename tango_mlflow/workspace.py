@@ -26,6 +26,7 @@ from tango_mlflow.util import (
     RunKind,
     add_mlflow_run_of_tango_run,
     add_mlflow_run_of_tango_step,
+    flatten_dict,
     get_mlflow_run_by_tango_run,
     get_mlflow_run_by_tango_step,
     get_mlflow_runs,
@@ -198,7 +199,7 @@ class MLFlowWorkspace(Workspace):
                         f"Could not find MLflow run for Tango run {self._step_id_to_run_name[step.unique_id]}"
                     )
 
-                for key, value in result.items():
+                for key, value in flatten_dict({step.name: result}).items():
                     self.mlflow_client.log_metric(mlflow_run_of_tang_run.info.run_id, key, value)
         finally:
             self.locks[step].release()
