@@ -7,12 +7,11 @@ ComplexOrTuple = Union[complex, Tuple[float, float]]
 
 
 def make_complex(x: ComplexOrTuple) -> complex:
-    if isinstance(x, complex):
-        return x
-    elif isinstance(x, (int, float)):
+    if isinstance(x, (int, float)):
         return complex(x)
-    else:
-        return complex(*x)
+    elif isinstance(x, complex):
+        return x
+    return complex(*x)
 
 
 @Step.register("cadd")
