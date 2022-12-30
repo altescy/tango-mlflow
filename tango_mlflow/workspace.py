@@ -298,7 +298,13 @@ class MLFlowWorkspace(Workspace):
         for step in all_steps:
             self._step_id_to_run_name[step.unique_id] = run.name
 
-        setattr(run, "__del__", self.terminate_run)
+        class RunTerminator:
+            workspace = self
+
+            def __del__(self) -> None:
+                self.workspace.terminate_run(run)
+
+        setattr(run, "_tango_mlflow_run_terminator", RunTerminator())
 
         return run
 
@@ -316,19 +322,21 @@ class MLFlowWorkspace(Workspace):
             ),
         )
         if mlflow_run is not None:
-            run = self._get_tango_run_by_mlflow_run(mlflow_run)
-            status = "FINISHED"
-            for step_info in run.steps.values():
-                updated_step_info = self._get_updated_step_info(step_info.unique_id)
-                if updated_step_info is None:
-                    raise KeyError(step_info.unique_id)
-                if updated_step_info.error is not None:
-                    status = "FAILED"
+            # check all child run statuses
+            is_all_steps_finished_successfully = True
+            for step_mlflow_run in get_mlflow_runs(
+                self.mlflow_client,
+                self.experiment_name,
+                run_kind=RunKind.STEP,
+                additional_filter_string=f"tags.{MLFLOW_PARENT_RUN_ID} = '{mlflow_run.info.run_id}'",
+            ):
+                is_all_steps_finished_successfully &= step_mlflow_run.info.status == "FINISHED"
+                if not is_all_steps_finished_successfully:
                     break
-            self.mlflow_client.set_terminated(
-                mlflow_run.info.run_id,
-                status=status,
-            )
+            status = "FINISHED" if is_all_steps_finished_successfully else "FAILED"
+
+            logger.info("Terminating run %s with status %s", run.name if isinstance(run, Run) else run, status)
+            self.mlflow_client.set_terminated(mlflow_run.info.run_id, status=status)
 
     def registered_runs(self) -> Dict[str, Run]:
         return {
