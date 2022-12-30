@@ -1,0 +1,9 @@
+log_level: info
+
+workspace:
+  type: mlflow
+  experiment_name: euler
+
+include_package:
+  - tango_mlflow
+  - complex_arithmetic
