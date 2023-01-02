@@ -1,3 +1,4 @@
+import atexit
 import json
 import logging
 import tempfile
@@ -57,6 +58,7 @@ class MLFlowWorkspace(Workspace):
         self._step_id_to_run_name: Dict[str, str] = {}
         self._mlflow_tags = dict(sorted(tags.items())) if tags else {}
         self._mlflow_tracking_uri = tracking_uri
+        self._run_status: Dict[str, str] = {}
 
         if self._mlflow_tracking_uri is not None:
             mlflow.set_tracking_uri(tracking_uri)
@@ -240,6 +242,7 @@ class MLFlowWorkspace(Workspace):
         return result
 
     def step_failed(self, step: Step, e: BaseException) -> None:
+        self._run_status[self._step_id_to_run_name[step.unique_id]] = "FAILED"
         mlflow_run = get_mlflow_run_by_tango_step(
             self.mlflow_client,
             self.experiment_name,
@@ -298,11 +301,20 @@ class MLFlowWorkspace(Workspace):
         for step in all_steps:
             self._step_id_to_run_name[step.unique_id] = run.name
 
-        setattr(run, "__del__", self.terminate_run)
+        class RunTerminator:
+            workspace = self
+
+            def __del__(self) -> None:
+                self.workspace.terminate_run(run)
+
+        setattr(run, "_tango_mlflow_run_terminator", RunTerminator())
+        atexit.register(self.terminate_run, run)
 
         return run
 
     def terminate_run(self, run: Union[str, Run]) -> None:
+        run_name = run if isinstance(run, str) else run.name
+
         mlflow_run = get_mlflow_run_by_tango_run(
             self.mlflow_client,
             self.experiment_name,
@@ -316,19 +328,12 @@ class MLFlowWorkspace(Workspace):
             ),
         )
         if mlflow_run is not None:
-            run = self._get_tango_run_by_mlflow_run(mlflow_run)
-            status = "FINISHED"
-            for step_info in run.steps.values():
-                updated_step_info = self._get_updated_step_info(step_info.unique_id)
-                if updated_step_info is None:
-                    raise KeyError(step_info.unique_id)
-                if updated_step_info.error is not None:
-                    status = "FAILED"
-                    break
-            self.mlflow_client.set_terminated(
-                mlflow_run.info.run_id,
-                status=status,
-            )
+            status = self._run_status.get(run_name, "FINISHED")
+            logger.info("Terminating run %s with status %s", run.name if isinstance(run, Run) else run, status)
+            self.mlflow_client.set_terminated(mlflow_run.info.run_id, status=status)
+
+        if run_name in self._run_status:
+            self._run_status.pop(run_name)
 
     def registered_runs(self) -> Dict[str, Run]:
         return {
