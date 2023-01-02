@@ -1,10 +1,15 @@
 import argparse
+import copy
 import dataclasses
+import json
+import os
 import tempfile
 from functools import partial
-from typing import Optional
+from typing import List, Optional
 
 import mlflow
+from mlflow.utils.mlflow_tags import MLFLOW_PARENT_RUN_ID
+from tango.__main__ import _run as tango_run
 from tango.common import FromParams, Params
 from tango.settings import TangoGlobalSettings
 from tango.workspace import Workspace
@@ -39,9 +44,9 @@ class TuneCommand(Subcommand):
             help="path to tango settings file",
         )
         self.parser.add_argument(
-            "--metrics",
+            "--metric",
             type=str,
-            help="The metrics you want to optimize.",
+            help="The metric you want to optimize.",
             default="best_validation_loss",
         )
         self.parser.add_argument(
@@ -83,7 +88,7 @@ class TuneCommand(Subcommand):
             """Settings for Optuna."""
 
             n_trials: Optional[int] = None
-            metrics: Optional[str] = None
+            metric: Optional[str] = None
             direction: str = "minimize"
             sampler: Optional[BaseSampler] = None
             pruner: Optional[BasePruner] = None
@@ -95,17 +100,40 @@ class TuneCommand(Subcommand):
             hparam_path: str,
             tango_settings: TangoGlobalSettings,
         ) -> float:
-            def suggested_experiment() -> str:
-                ...
+            tango_settings = copy.deepcopy(tango_settings)
 
-            mlflow_run_name = f"{trial.study.study_name}_{trial.number}"
-            with mlflow.start_run(nested=True, run_name=mlflow_run_name):
-                mlflow.set_tag("optuna.study_name", trial.study.study_name)
-                mlflow.set_tag("optuna.trial_number", trial.number)
+            ext_var: List[str] = []
+            with open(hparam_path) as jsonfile:
+                for key, params in json.load(jsonfile).items():
+                    value_type = params.pop("type")
+                    suggest = getattr(trial, f"suggest_{value_type}")
+                    value = suggest(key, **params)
+                    ext_var.append(f"{key}={value}")
 
-                # TODO: implement optimaization
+            run_name = tango_run(
+                settings=tango_settings,
+                experiment=experiment,
+                name=f"{trial.study.study_name}_{trial.number}",
+                ext_var=ext_var,
+            )
 
-            return 0.0
+            workspace = Workspace.from_params(Params(tango_settings.workspace or {}))
+            assert isinstance(workspace, MLFlowWorkspace)
+            mlflow_run = get_mlflow_run_by_tango_run(
+                workspace.mlflow_client,
+                workspace.experiment_name,
+                tango_run=run_name,
+            )
+            if mlflow_run is None:
+                raise RuntimeError(f"Could not find MLFlow run for tango run {run_name}")
+
+            metric_history = workspace.mlflow_client.get_metric_history(mlflow_run.info.run_id, args.metric)
+            if not metric_history:
+                raise RuntimeError(f"No metric history found for {args.metric}.")
+
+            latest_metric = metric_history[-1]
+
+            return float(latest_metric.value)
 
         tango_settings = (
             TangoGlobalSettings.from_file(args.tango_settings) if args.tango_settings else TangoGlobalSettings.default()
@@ -117,7 +145,7 @@ class TuneCommand(Subcommand):
         optuna_settings = (
             OptunaSettings.from_params(Params.from_file(args.optuna_settings), **vars(args))
             if args.optuna_settings
-            else OptunaSettings(**vars(args))
+            else OptunaSettings.from_params(Params(vars(args)))
         )
         study_name = args.name or generate_unique_run_name(workspace.mlflow_client, workspace.experiment_name)
         optuna_storage_path = tempfile.mktemp()
@@ -145,18 +173,19 @@ class TuneCommand(Subcommand):
             load_if_exists=args.resume,
         )
 
-        objective = partial(
-            _objective,
-            hparam_path=args.hparam_path,
-            tango_settings=tango_settings,
-        )
-
         with mlflow.start_run(
             run_id=mlflow_run.info.run_id if mlflow_run is not None else None,
             run_name=study_name if mlflow_run is None else None,
             tags={"job_type": RunKind.OPTUNA_STUDY.value},
-        ):
+        ) as active_run:
             try:
+                workspace._mlflow_tags[MLFLOW_PARENT_RUN_ID] = active_run.info.run_id
+                tango_settings.workspace = {"type": "from_url", "url": workspace.url}
+                objective = partial(
+                    _objective,
+                    hparam_path=args.hparam_path,
+                    tango_settings=tango_settings,
+                )
                 study.optimize(
                     objective,
                     n_trials=optuna_settings.n_trials,
@@ -164,3 +193,4 @@ class TuneCommand(Subcommand):
                 )
             finally:
                 mlflow.log_artifact(optuna_storage_path, "optuna.db")
+                os.remove(optuna_storage_path)
