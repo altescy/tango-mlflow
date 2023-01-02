@@ -178,19 +178,31 @@ class TuneCommand(Subcommand):
             run_name=study_name if mlflow_run is None else None,
             tags={"job_type": RunKind.OPTUNA_STUDY.value},
         ) as active_run:
+            workspace._mlflow_tags[MLFLOW_PARENT_RUN_ID] = active_run.info.run_id
+            tango_settings.workspace = {"type": "from_url", "url": workspace.url}
+            objective = partial(
+                _objective,
+                hparam_path=args.hparam_path,
+                tango_settings=tango_settings,
+            )
+
+            mlflow.log_params(tango_settings.to_params().as_flat_dict())
+            mlflow.log_artifact(args.experiment, "experiment.jsonnet")
+            mlflow.log_artifact(args.hparam_path, "hparams.json")
+
             try:
-                workspace._mlflow_tags[MLFLOW_PARENT_RUN_ID] = active_run.info.run_id
-                tango_settings.workspace = {"type": "from_url", "url": workspace.url}
-                objective = partial(
-                    _objective,
-                    hparam_path=args.hparam_path,
-                    tango_settings=tango_settings,
-                )
                 study.optimize(
                     objective,
                     n_trials=optuna_settings.n_trials,
                     timeout=optuna_settings.timeout,
                 )
+                mlflow.log_metric("best_metric", study.best_trial.value)
+                mlflow.log_metric("best_trial", study.best_trial.number)
+                with tempfile.TemporaryDirectory() as tempdir:
+                    filename = os.path.join(tempdir, "best_params.json")
+                    with open(filename, "w") as jsonfile:
+                        json.dump(study.best_trial.params, jsonfile)
+                    mlflow.log_artifact(filename, "best_params.json")
             finally:
                 mlflow.log_artifact(optuna_storage_path, "optuna.db")
                 os.remove(optuna_storage_path)
