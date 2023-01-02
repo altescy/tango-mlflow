@@ -19,6 +19,7 @@ from tango.workspace import Run as TangoRun
 class RunKind(Enum):
     STEP = "step"
     TANGO_RUN = "tango_run"
+    OPTUNA_STUDY = "optuna_study"
 
 
 def flatten_dict(d: Dict[str, Any]) -> Dict[str, Any]:
