@@ -94,7 +94,7 @@ class TuneCommand(Subcommand):
         from optuna.pruners import BasePruner
         from optuna.samplers import BaseSampler
 
-        class OptunaPruner(BasePruner, Registrable):
+        class OptunaPruner(BasePruner, Registrable):  # type: ignore[misc]
             ...
 
         OptunaPruner.register("median")(optuna.pruners.MedianPruner)
@@ -105,7 +105,7 @@ class TuneCommand(Subcommand):
         OptunaPruner.register("threshold")(optuna.pruners.ThresholdPruner)
         OptunaPruner.register("hyperband")(optuna.pruners.HyperbandPruner)
 
-        class OptunaSampler(BaseSampler, Registrable):
+        class OptunaSampler(BaseSampler, Registrable):  # type: ignore[misc]
             ...
 
         OptunaSampler.register("grid")(optuna.samplers.GridSampler)
