@@ -19,6 +19,7 @@ from tango.workspace import Run as TangoRun
 class RunKind(Enum):
     STEP = "step"
     TANGO_RUN = "tango_run"
+    OPTUNA_STUDY = "optuna_study"
 
 
 def flatten_dict(d: Dict[str, Any]) -> Dict[str, Any]:
@@ -314,3 +315,20 @@ def terminate_mlflow_run_of_tango_step(
         status=status,
         end_time=None if step_info.end_time is None else round(1000 * step_info.end_time.timestamp()),
     )
+
+
+def is_all_child_run_finished(
+    mlflow_client: MlflowClient,
+    experiment: Union[str, MLFlowExperiment],
+    mlflow_run: Union[str, MLFlowRun],
+) -> bool:
+    run_id = mlflow_run.info.run_id if isinstance(mlflow_run, MLFlowRun) else mlflow_run
+
+    for child_run in get_mlflow_runs(
+        mlflow_client,
+        experiment,
+        additional_filter_string=f"tags.{MLFLOW_PARENT_RUN_ID} = '{run_id}'",
+    ):
+        if child_run.info.status != "FINISHED":
+            return False
+    return True

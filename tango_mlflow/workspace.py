@@ -12,7 +12,7 @@ import mlflow
 import pytz  # type: ignore
 from mlflow.entities import Run as MLFlowRun
 from mlflow.tracking.client import MlflowClient
-from mlflow.utils.mlflow_tags import MLFLOW_PARENT_RUN_ID, MLFLOW_RUN_NAME
+from mlflow.utils.mlflow_tags import MLFLOW_RUN_NAME
 from tango.common.exceptions import StepStateError
 from tango.common.file_lock import FileLock
 from tango.common.logging import file_handler
@@ -446,9 +446,14 @@ class MLFlowWorkspace(Workspace):
                     mlflow_run = get_mlflow_run_by_tango_run(self.mlflow_client, self.experiment_name, name)
                     if mlflow_run is None:
                         raise RuntimeError(f"Run '{name}' not found in workspace")
-                    parent_run_id = mlflow_run.data.tags.get(MLFLOW_PARENT_RUN_ID)
-                    if parent_run_id:
-                        mlflow_run = self.mlflow_client.get_run(parent_run_id)
                     self.mlflow_client.log_artifact(mlflow_run.info.run_id, str(log_path))
 
         return capture_logs()
+
+    def _to_params(self) -> Dict[str, Any]:
+        return {
+            "type": "mlflow",
+            "experiment_name": self.experiment_name,
+            "tags": self._mlflow_tags,
+            "tracking_uri": self.mlflow_client.tracking_uri,
+        }

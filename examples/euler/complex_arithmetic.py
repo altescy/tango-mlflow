@@ -3,7 +3,7 @@ from typing import Tuple, Union
 
 from tango import Step
 
-ComplexOrTuple = Union[complex, Tuple[float, float]]
+ComplexOrTuple = Union[int, float, complex, Tuple[float, float]]
 
 
 def make_complex(x: ComplexOrTuple) -> complex:
