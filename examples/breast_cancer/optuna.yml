@@ -1,0 +1,6 @@
+metric: metrics.accuracy
+direction: maximize
+sampler:
+  type: tpe
+pruner:
+  type: median

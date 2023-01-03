@@ -1,0 +1,21 @@
+{
+  "preprocess_scale": {
+    "type": "categorical",
+    "choices": [
+      "standard",
+      "minmax",
+      null
+    ]
+  },
+  "learning_rate": {
+    "type": "float",
+    "low": 0.0001,
+    "high": 0.1,
+    "log": true
+  },
+  "penalty": {
+    "type": "float",
+    "low": 0.0,
+    "high": 10.0
+  }
+}

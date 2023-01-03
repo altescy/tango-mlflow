@@ -1,7 +1,11 @@
+local preprocess_scale = std.extVar('preprocess_scale');
+local learning_rate = std.parseJson(std.extVar('learning_rate'));
+local penalty = std.parseJson(std.extVar('penalty'));
+
 local ref(name) = { type: 'ref', ref: name };
 local preprocess(dataset) = {
   type: 'preprocess',
-  scale: 'standard',
+  scale: preprocess_scale,
   dataset: ref(dataset),
 };
 
@@ -22,8 +26,8 @@ local preprocess(dataset) = {
       dataset: ref('preprocessed_train'),
       model: {
         type: 'logistic_regression',
-        learning_rate: 1e-2,
-        penalty: 0.5,
+        learning_rate: learning_rate,
+        penalty: penalty,
       },
     },
     metrics: {
