@@ -201,7 +201,8 @@ def add_mlflow_run_of_tango_run(
                         [f"'{dep.name}'" for dep in dependencies],
                     )
                 )
-            query = {"searchInput": f"tags.step_id = '{step.unique_id}'"}
+            search_query_key = "searchInput" if mlflow.__version__ < "2.0.0" else "searchFilter"
+            query = {search_query_key: f"tags.step_id = '{step.unique_id}'"}
             url = f"/#/experiments/{experiment.experiment_id}/s?{urlencode(query)}"
             description += f"\n  - [{step.unique_id}]({url})\n"
 
