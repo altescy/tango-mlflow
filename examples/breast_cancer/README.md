@@ -1,4 +1,4 @@
-# Breast Cancer Predictio
+# Breast Cancer Prediction
 
 Training logistic regression model with searching optimal hyper-parameters by [Optuna](https://optuna.org/).
 
