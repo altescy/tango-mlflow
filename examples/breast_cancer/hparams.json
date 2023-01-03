@@ -1,10 +1,10 @@
 {
-  "preprocess_scale": {
+  "preprocessor": {
     "type": "categorical",
     "choices": [
-      "standard",
-      "minmax",
-      null
+      "standard_scaler",
+      "minmax_scaler",
+      "pass_through"
     ]
   },
   "learning_rate": {

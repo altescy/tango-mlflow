@@ -23,6 +23,16 @@ class Model(abc.ABC, Registrable):
         raise NotImplementedError
 
 
+class Preprocessor(abc.ABC, Registrable):
+    @abc.abstractmethod
+    def train(self, X: numpy.ndarray) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def process(self, X: numpy.ndarray) -> numpy.ndarray:
+        raise NotImplementedError
+
+
 @Model.register("logistic_regression")
 class LogisticRegression(Model):
     def __init__(
@@ -85,6 +95,47 @@ class LogisticRegression(Model):
         return y_pred
 
 
+@Preprocessor.register("standard_scaler")
+class StandardScaler(Preprocessor):
+    def __init__(self) -> None:
+        self.mean: Optional[numpy.ndarray] = None
+        self.std: Optional[numpy.ndarray] = None
+
+    def train(self, X: numpy.ndarray) -> None:
+        self.mean = X.mean(axis=0)
+        self.std = X.std(axis=0)
+
+    def process(self, X: numpy.ndarray) -> numpy.ndarray:
+        if self.mean is None or self.std is None:
+            raise RuntimeError("Preprocessor not trained yet")
+        return cast(numpy.ndarray, (X - self.mean) / self.std)
+
+
+@Preprocessor.register("pass_through")
+class PassThrough(Preprocessor):
+    def train(self, X: numpy.ndarray) -> None:
+        pass
+
+    def process(self, X: numpy.ndarray) -> numpy.ndarray:
+        return X
+
+
+@Preprocessor.register("minmax_scaler")
+class MinMaxScaler(Preprocessor):
+    def __init__(self) -> None:
+        self.min: Optional[numpy.ndarray] = None
+        self.max: Optional[numpy.ndarray] = None
+
+    def train(self, X: numpy.ndarray) -> None:
+        self.min = X.min(axis=0)
+        self.max = X.max(axis=0)
+
+    def process(self, X: numpy.ndarray) -> numpy.ndarray:
+        if self.min is None or self.max is None:
+            raise RuntimeError("Preprocessor not trained yet")
+        return cast(numpy.ndarray, (X - self.min) / (self.max - self.min))
+
+
 @tango.Step.register("load_dataset")
 class LoadDataset(tango.Step):
     def run(  # type: ignore[override]
@@ -110,30 +161,15 @@ class Preprocess(tango.Step):
     def run(  # type: ignore[override]
         self,
         dataset: Tuple[numpy.ndarray, numpy.ndarray],
-        scale: Optional[str] = None,
+        preprocessor: Preprocessor,
     ) -> Tuple[numpy.ndarray, numpy.ndarray]:
         X, y = dataset
-
-        if scale == "standard":
-            self.logger.info("Standard scaling")
-            mean = X.mean(axis=0)
-            std = X.std(axis=0)
-            X = (X - mean) / std
-        elif scale == "minmax":
-            self.logger.info("Min-max scaling")
-            min_ = X.min(axis=0)
-            max_ = X.max(axis=0)
-            X = (X - min_) / (max_ - min_)
-        elif scale is None:
-            pass
-        else:
-            raise ValueError(f"Invalid scale: {scale}")
-
+        X = preprocessor.process(X)
         return X, y
 
 
-@tango.Step.register("train")
-class Train(MLflowStep):
+@tango.Step.register("train_model")
+class TrainModel(MLflowStep):
     def run(  # type: ignore[override]
         self,
         dataset: Tuple[numpy.ndarray, numpy.ndarray],
@@ -151,6 +187,22 @@ class Train(MLflowStep):
 
         self.logger.info("Training complete")
         return model
+
+
+@tango.Step.register("train_preprocessor")
+class TrainPreprocessor(MLflowStep):
+    def run(  # type: ignore[override]
+        self,
+        dataset: Tuple[numpy.ndarray, numpy.ndarray],
+        preprocessor: Preprocessor,
+    ) -> Preprocessor:
+        X, _ = dataset
+
+        self.logger.info(f"Training preprocessor with {X.shape[0]} samples")
+        preprocessor.train(X)
+
+        self.logger.info("Training complete")
+        return preprocessor
 
 
 @tango.Step.register("evaluate")
