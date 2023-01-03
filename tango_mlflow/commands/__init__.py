@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 
 from tango_mlflow import __version__
+from tango_mlflow.commands import tune  # noqa: F401
 from tango_mlflow.commands.subcommand import Subcommand
 
 
