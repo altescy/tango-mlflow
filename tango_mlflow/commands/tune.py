@@ -47,7 +47,7 @@ class TuneCommand(Subcommand):
         self.parser.add_argument(
             "--name",
             type=str,
-            help="name of tango run",
+            help="name of optuna study",
         )
         self.parser.add_argument(
             "--tango-settings",
@@ -57,7 +57,7 @@ class TuneCommand(Subcommand):
         self.parser.add_argument(
             "--metric",
             type=str,
-            help="The metric you want to optimize.",
+            help="metric you want to optimize",
         )
         self.parser.add_argument(
             "--n-trials",
