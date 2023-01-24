@@ -100,10 +100,6 @@ class MLFlowStepCache(LocalStepCache):
         if key in self.weak_cache:
             return True
 
-        with self._acquire_step_lock_file(step, read_only_ok=True):
-            if self.step_dir(step).is_dir():
-                return True
-
         mlflow_run = self.get_step_result_mlflow_run(step)
         return mlflow_run is not None
 
