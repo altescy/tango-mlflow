@@ -1,3 +1,4 @@
+import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
@@ -20,6 +21,7 @@ class RunKind(Enum):
     STEP = "step"
     TANGO_RUN = "tango_run"
     OPTUNA_STUDY = "optuna_study"
+    TRAIN_METRICS = "train_metrics"
 
 
 def flatten_dict(d: Dict[str, Any]) -> Dict[str, Any]:
@@ -35,6 +37,11 @@ def flatten_dict(d: Dict[str, Any]) -> Dict[str, Any]:
         else:
             result[key] = value
     return result
+
+
+def get_timestamp() -> int:
+    """timestamp as an integer (milliseconds since the Unix epoch)."""
+    return int(datetime.datetime.now().timestamp() * 1000)
 
 
 def is_mlflow_using_local_artifact_storage(
