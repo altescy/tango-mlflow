@@ -15,6 +15,7 @@ optuna = {version = "^3.0.5", optional = true}
 llvmlite = "^0.39.1"
 numba = "^0.56.4"
 torch = {version = "^2.0.0", optional = true}
+flax = {version = "^0.6.8", optional = true}
 
 [tool.poetry.dev-dependencies]
 python-language-server = "^0.36.2"
@@ -28,7 +29,12 @@ mypy = "^0.991"
 [tool.poetry.extras]
 optuna = ["optuna"]
 torch = ["torch"]
-all = ["optuna", "torch"]
+flax = ["flax"]
+all = ["optuna", "torch", "flax"]
+
+[tool.poetry.group.dev.dependencies]
+jax = {version = "^0.4.8", extras = ["cpu"]}
+datasets = "^2.11.0"
 
 [tool.pysen]
 version = "0.10"
