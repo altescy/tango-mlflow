@@ -1,21 +1,16 @@
 from typing import Any, Dict, List, Optional
 
 import mlflow
+import torch
 from mlflow.entities import Metric
 from mlflow.entities import Run as MlflowRun
 from mlflow.tracking.context import registry as context_registry
 from mlflow.utils.mlflow_tags import MLFLOW_RUN_NAME
-from tango.common.exceptions import IntegrationMissingError
+from tango.integrations.torch.train_callback import TrainCallback
+from tango.integrations.torch.util import peak_gpu_memory
 
 from tango_mlflow.util import RunKind, flatten_dict, get_mlflow_run_by_tango_step, get_timestamp
 from tango_mlflow.workspace import MLFlowWorkspace
-
-try:
-    import torch
-    from tango.integrations.torch.train_callback import TrainCallback
-    from tango.integrations.torch.util import peak_gpu_memory
-except ModuleNotFoundError:
-    raise IntegrationMissingError("torch")
 
 
 @TrainCallback.register("mlflow::log")
