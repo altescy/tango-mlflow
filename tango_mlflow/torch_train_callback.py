@@ -55,6 +55,7 @@ class MLFlowTrainCallback(TrainCallback):
     def ensure_mlflow_run(self) -> MlflowRun:
         if self.mlflow_run is None:
             raise RuntimeError("MLFlow run not initialized")
+        return self.mlflow_run
 
     def state_dict(self) -> Dict[str, Any]:
         return {}
@@ -97,7 +98,6 @@ class MLFlowTrainCallback(TrainCallback):
             metrics = [
                 Metric(key=f"sys.worker{rank}_peak_gpu_mem", value=mbs, timestamp=timestamp, step=0)
                 for rank, mbs in peak_gpu_mbs.items()
-                if mbs is not None
             ]
             metrics.append(Metric(key="epoch", value=0, timestamp=timestamp, step=0))
             self.mlflow_client.log_batch(self.mlflow_run.info.run_id, metrics=metrics)
@@ -144,7 +144,6 @@ class MLFlowTrainCallback(TrainCallback):
             ] + [
                 Metric(key=f"sys.worker{rank}_peak_gpu_mem", value=mbs, timestamp=timestamp, step=step)
                 for rank, mbs in peak_gpu_mbs.items()
-                if mbs is not None
             ]
             self.mlflow_client.log_batch(mlflow_run.info.run_id, metrics=metrics)
 
