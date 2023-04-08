@@ -5,7 +5,7 @@
 [![pypi version](https://img.shields.io/pypi/v/tango-mlflow)](https://pypi.org/project/tango-mlflow/)
 [![License](https://img.shields.io/github/license/altescy/tango-mlflow)](https://github.com/altescy/tango-mlflow/blob/main/LICENSE)
 
-`tango-mlflow` integrates your [tango](https://github.com/allenai/tango) project with [MLflow](https://mlflow.org/), which enables you to log entire configs and artifacts of your tango run.
+`tango-mlflow` integrates your [tango](https://github.com/allenai/tango) project with [MLflow](https://mlflow.org/), which enables you to store entire experimental settings and artifacts of your tango run into MLflow.
 
 ## Installation
 
