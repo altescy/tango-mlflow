@@ -1,6 +1,12 @@
+from tango.common.exceptions import IntegrationMissingError
+
+try:
+    import jax
+except ModuleNotFoundError:
+    raise IntegrationMissingError("jax")
+
 from typing import Any, Dict, Optional
 
-import jax
 import mlflow
 from flax import jax_utils
 from mlflow.entities import Metric

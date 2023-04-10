@@ -1,7 +1,13 @@
+from tango.common.exceptions import IntegrationMissingError
+
+try:
+    import torch
+except ModuleNotFoundError:
+    raise IntegrationMissingError("torch")
+
 from typing import Any, Dict, List, Optional
 
 import mlflow
-import torch
 from mlflow.entities import Metric
 from mlflow.entities import Run as MlflowRun
 from mlflow.tracking.context import registry as context_registry
