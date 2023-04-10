@@ -5,10 +5,14 @@ try:
 except ModuleNotFoundError:
     raise IntegrationMissingError("jax")
 
+try:
+    from flax import jax_utils
+except ModuleNotFoundError:
+    raise IntegrationMissingError("flax")
+
 from typing import Any, Dict, Optional
 
 import mlflow
-from flax import jax_utils
 from mlflow.entities import Metric
 from mlflow.entities import Run as MlflowRun
 from mlflow.tracking.context import registry as context_registry
