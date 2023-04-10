@@ -3,12 +3,14 @@ from tango.common.exceptions import IntegrationMissingError
 try:
     import jax
 except ModuleNotFoundError:
-    raise IntegrationMissingError("jax")
+    jax = None  # type: ignore[assignment]
 
 try:
     from flax import jax_utils
-except ModuleNotFoundError:
-    raise IntegrationMissingError("flax")
+    from tango.integrations.flax.train_callback import TrainCallback
+except (ModuleNotFoundError, IntegrationMissingError):
+    jax_utils = None  # type: ignore[assignment]
+    TrainCallback = object  # type: ignore[assignment, misc]
 
 from typing import Any, Dict, Optional
 
@@ -17,7 +19,6 @@ from mlflow.entities import Metric
 from mlflow.entities import Run as MlflowRun
 from mlflow.tracking.context import registry as context_registry
 from mlflow.utils.mlflow_tags import MLFLOW_RUN_NAME
-from tango.integrations.flax.train_callback import TrainCallback
 
 from tango_mlflow.util import RunKind, flatten_dict, get_mlflow_run_by_tango_step, get_timestamp
 from tango_mlflow.workspace import MLFlowWorkspace

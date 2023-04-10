@@ -2,8 +2,12 @@ from tango.common.exceptions import IntegrationMissingError
 
 try:
     import torch
-except ModuleNotFoundError:
-    raise IntegrationMissingError("torch")
+    from tango.integrations.torch.train_callback import TrainCallback
+    from tango.integrations.torch.util import peak_gpu_memory
+except (ModuleNotFoundError, IntegrationMissingError):
+    torch = None  # type: ignore[assignment]
+    TrainCallback = object  # type: ignore[assignment, misc]
+    peak_gpu_memory = dict  # type: ignore[assignment]
 
 from typing import Any, Dict, List, Optional
 
@@ -12,8 +16,6 @@ from mlflow.entities import Metric
 from mlflow.entities import Run as MlflowRun
 from mlflow.tracking.context import registry as context_registry
 from mlflow.utils.mlflow_tags import MLFLOW_RUN_NAME
-from tango.integrations.torch.train_callback import TrainCallback
-from tango.integrations.torch.util import peak_gpu_memory
 
 from tango_mlflow.util import RunKind, flatten_dict, get_mlflow_run_by_tango_step, get_timestamp
 from tango_mlflow.workspace import MLFlowWorkspace
@@ -30,6 +32,9 @@ class MLFlowTrainCallback(TrainCallback):
         mlflow_config: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
     ) -> None:
+        if torch is None:
+            raise IntegrationMissingError("torch")
+
         super().__init__(*args, **kwargs)
 
         if isinstance(self.workspace, MLFlowWorkspace):
