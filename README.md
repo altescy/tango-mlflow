@@ -18,7 +18,7 @@ pip install tango-mlflow[all]
 You can use `MLFlowWorkspace` by using command line arguments like below:
 
 ```bash
-tango run --workspace mlflow://your_experiment_name --include-package tango-mlflow
+tango run --workspace mlflow://your_experiment_name --include-package tango_mlflow
 ```
 
 or write your configuration in `tango.yml`:
