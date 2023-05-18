@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "tango-mlflow"
-version = "1.0.1"
+version = "1.1.0"
 description = "MLflow integration for ai2-tango"
 authors = ["altescy <altescy@fastmail.com>"]
 license = "MIT License"
