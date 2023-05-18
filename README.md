@@ -21,7 +21,7 @@ Here's a screenshot of the MLflow interface when executing with `tango-mlflow`:
 
 - **Tango run**: The top-level run in MLflow corresponds to a single execution in Tango, and its name matches the execution name in Tango.
 - **Tango steps**: Results of each step in Tango are recorded as nested runs in MLflow. The names of these nested runs correspond to the names of the steps in Tango.
-- **Parameters and Metrics**: The entire settings for the execution, as well as the parameters for each step, are automatically logged in MLflow as metrics.
+- **Parameters and Metrics**: The entire settings for the execution, as well as the parameters for each step, are automatically logged in MLflow.
 - **Artifacts and Caching**: The cached outputs of each step's execution are saved as artifacts under the corresponding MLflow run. These can be reused when executing Tango, enhancing efficiency and reproducibility.
 
 ## Installation
