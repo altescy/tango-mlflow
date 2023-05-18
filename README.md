@@ -9,7 +9,7 @@ MLflow integration for [ai2-tango](https://github.com/allenai/tango)
 
 ## Introduction
 
-`tango-mlflow` is a Python library that connects the [tango](https://github.com/allenai/tango) to [MLflow](https://mlflow.org/).
+`tango-mlflow` is a Python library that connects the [Tango](https://github.com/allenai/tango) to [MLflow](https://mlflow.org/).
 Tango, developed by AllenAI, is a flexible pipeline library for managing experiments and caching outputs of each step.
 MLflow, on the other hand, is a platform that helps manage the Machine Learning lifecycle, including experimentation, reproducibility, and deployment.
 
@@ -60,7 +60,7 @@ Remember to replace `your_experiment_name` with the name of your specific experi
 
 ### Logging metrics into MLflow
 
-The `tango-mlflow` package provides the `MLflowStep` class, which allows you to easily log the results of each step execution to MLflow. 
+The `tango-mlflow` package provides the `MLflowStep` class, which allows you to easily log the results of each step execution to MLflow.
 
 ```python
 from tango_mlflow.step import MLflowStep
@@ -85,9 +85,9 @@ Inside the step, you can directly record metrics to the corresponding MLflow run
 
 Please note, this functionality must be used in conjunction with MLFlowWorkspace.
 
-### Summarizing tango run metrics
+### Summarizing Tango run metrics
 
-You can specify a step to record its returned metrics as representative values of the Tango run by setting the class variable `MLFLOW_SUMMARY = True`. 
+You can specify a step to record its returned metrics as representative values of the Tango run by setting the class variable `MLFLOW_SUMMARY = True`.
 This feature enables you to conveniently view metrics for each Tango run directly in the MLflow interface
 
 ```python
