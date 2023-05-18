@@ -27,7 +27,7 @@ Here's a screenshot of the MLflow interface when executing with `tango-mlflow`:
 
 Install `tango-mlflow` by running the following command in your terminal:
 
-```bash
+```shell
 pip install tango-mlflow[all]
 ```
 
@@ -35,7 +35,7 @@ pip install tango-mlflow[all]
 
 You can use the `MLFlowWorkspace` with command line arguments as follows:
 
-```bash
+```shell
 tango run --workspace mlflow://your_experiment_name --include-package tango_mlflow
 ```
 
@@ -54,6 +54,12 @@ In the above `tango.yml` configuration, `type` specifies the workspace type as M
 The `include_package` field needs to include the `tango_mlflow` package to use `tango-mlflow` functionality.
 
 Remember to replace `your_experiment_name` with the name of your specific experiment.
+
+To log runs remotely, set the `MLFLOW_TRACKING_URI` environment variable to a tracking server’s URI like below:
+
+```shell
+export MLFLOW_TRACKING_URI=https://mlflow.example.com
+```
 
 ## Functionalities
 
