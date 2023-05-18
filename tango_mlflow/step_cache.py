@@ -120,13 +120,21 @@ class MLFlowStepCache(LocalStepCache):
         # Next check our local on-disk cache
         with self._acquire_step_lock_file(step, read_only_ok=True):
             if self.step_dir(step).is_dir():
-                return load_and_return()
+                try:
+                    return load_and_return()
+                except FileNotFoundError:
+                    logger.info("Spep cache is incomplete, trying to re-download it from MLflow...")
+                    shutil.rmtree(self.step_dir(step))
 
         # Finally, check MLflow for the corresponding artifact.
         with self._acquire_step_lock_file(step):
             # Make sure the step wasn't cached since the last time we checked (above).
             if self.step_dir(step).is_dir():
-                return load_and_return()
+                try:
+                    return load_and_return()
+                except FileNotFoundError:
+                    logger.info("Spep cache is incomplete, trying to re-download it from MLflow...")
+                    shutil.rmtree(self.step_dir(step))
 
             mlflow_run = self.get_step_result_mlflow_run(step)
             if mlflow_run is None:
