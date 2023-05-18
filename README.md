@@ -56,6 +56,60 @@ The `include_package` field needs to include the `tango_mlflow` package to use `
 
 Remember to replace `your_experiment_name` with the name of your specific experiment.
 
+## Functionalities
+
+### Logging metrics into MLflow
+
+The `tango-mlflow` package provides the `MLflowStep` class, which allows you to easily log the results of each step execution to MLflow. 
+
+```python
+from tango_mlflow.step import MLflowStep
+
+class TrainModel(MLflowStep):
+    def run(self, **params):
+
+        # pre-process...
+
+        for epoch in range(max_epochs):
+            loss = train_epoch(...)
+            metrics = evaluate_model(...)
+            # log metrics with mlflow_logger
+            for name, value in metrics.items():
+                self.mlflow_logger.log_metric(name, value, step=epoch)
+
+        # post-process...
+```
+
+In the example above, the `TrainModel` step inherits from `MLflowStep`.
+Inside the step, you can directly record metrics to the corresponding MLflow run by invoking `self.mlflow_logger.log_metric(...)`.
+
+Please note, this functionality must be used in conjunction with MLFlowWorkspace.
+
+### Summarizing tango run metrics
+
+You can specify a step to record its returned metrics as representative values of the Tango run by setting the class variable `MLFLOW_SUMMARY = True`. 
+This feature enables you to conveniently view metrics for each Tango run directly in the MLflow interface
+
+```python
+class EvaluateModel(Step):
+    MLFLOW_SUMMARY = True  # Enables MLflow summary!
+
+    def run(self, ...) -> dict[str, float]:
+        # compute metrics ...
+        return metrics
+```
+
+In the example above, the EvaluateModel step returns metrics that are logged as the representative values for that Tango run. These metrics are then recorded in the corresponding (top-level) MLflow run.
+
+Please note the following requirements:
+- The return value of a step where `MLFLOW_SUMMARY = True` is set must always be `dict[str, float]`.
+- You don't necessarily need to inherit from `MLflowStep` to use `MLFLOW_SUMMARY`.
+
+### Tuning hyper-parameters with Optuna
+
+`tango-mlflow` also provides the `tango-mlflow tune` command for tuning hyperparameters with [Optuna](https://optuna.org/).
+For more details, please refer to the [examples/breast_cancer](https://github.com/altescy/tango-mlflow/tree/main/examples/breast_cancer) directory.
+
 ## Examples
 
 - Basic example: [examples/euler](https://github.com/altescy/tango-mlflow/tree/main/examples/euler)
