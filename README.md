@@ -12,7 +12,6 @@ MLflow integration for [ai2-tango](https://github.com/allenai/tango)
 `tango-mlflow` is a Python library that connects the [Tango](https://github.com/allenai/tango) to [MLflow](https://mlflow.org/).
 Tango, developed by AllenAI, is a flexible pipeline library for managing experiments and caching outputs of each step.
 MLflow, on the other hand, is a platform that helps manage the Machine Learning lifecycle, including experimentation, reproducibility, and deployment.
-
 This integration enables you to store and manage complete experimental settings and artifacts of your Tango run in MLflow, thus enhancing your experiment tracking capabilities.
 
 Here's a screenshot of the MLflow interface when executing with `tango-mlflow`:
@@ -83,7 +82,7 @@ class TrainModel(MLflowStep):
 In the example above, the `TrainModel` step inherits from `MLflowStep`.
 Inside the step, you can directly record metrics to the corresponding MLflow run by invoking `self.mlflow_logger.log_metric(...)`.
 
-Please note, this functionality must be used in conjunction with MLFlowWorkspace.
+Please note, this functionality must be used in conjunction with `MLFlowWorkspace`.
 
 ### Summarizing Tango run metrics
 
@@ -99,13 +98,13 @@ class EvaluateModel(Step):
         return metrics
 ```
 
-In the example above, the EvaluateModel step returns metrics that are logged as the representative values for that Tango run. These metrics are then recorded in the corresponding (top-level) MLflow run.
+In the example above, the `EvaluateModel` step returns metrics that are logged as the representative values for that Tango run. These metrics are then recorded in the corresponding (top-level) MLflow run.
 
 Please note the following requirements:
 - The return value of a step where `MLFLOW_SUMMARY = True` is set must always be `dict[str, float]`.
 - You don't necessarily need to inherit from `MLflowStep` to use `MLFLOW_SUMMARY`.
 
-### Tuning hyper-parameters with Optuna
+### Tuning hyperparameters with Optuna
 
 `tango-mlflow` also provides the `tango-mlflow tune` command for tuning hyperparameters with [Optuna](https://optuna.org/).
 For more details, please refer to the [examples/breast_cancer](https://github.com/altescy/tango-mlflow/tree/main/examples/breast_cancer) directory.
