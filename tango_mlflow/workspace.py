@@ -144,11 +144,39 @@ class MLFlowWorkspace(Workspace):
 
         step_info = self._get_updated_step_info(step.unique_id) or StepInfo.new_from_step(step)
         if step_info.state not in {StepState.INCOMPLETE, StepState.FAILED, StepState.UNCACHEABLE}:
+            mlflow_run = get_mlflow_run_by_tango_step(self.mlflow_client, self.experiment_name, step_info)
+            if not mlflow_run:
+                raise RuntimeError(
+                    f"Could not find mlflow run for step {step.unique_id}. There is a possibility that"
+                    " the run was deleted or modified during the execution. Please try again."
+                )
+            if step_info.state == StepState.RUNNING:
+                raise StepStateError(
+                    step,
+                    step_info.state,
+                    context=(
+                        "This step is already running. If you are certain the step is not running somewhere else,"
+                        " it seems that this step was accidentally killed in a previous run. In this case, please"
+                        f" delete the mlflow run ({mlflow_run.info.run_id}) for this step and try again."
+                    ),
+                )
+            if step_info.state == StepState.COMPLETED:
+                raise StepStateError(
+                    step,
+                    step_info.state,
+                    context=(
+                        "This step has already been completed in a previous run. Please rerun this step, and the"
+                        " cached result will be used. If this error persists, please open an issue from here:"
+                        " https://github.com/altescy/tango-mlflow/issues/new"
+                    ),
+                )
             raise StepStateError(
                 step,
                 step_info.state,
-                context="If you are certain the step is not running somewhere else, delete the lock "
-                f"file at {lock_path}.",
+                context=(
+                    "Unknown step state is detected. Please open an issue from here:"
+                    " https://github.com/altescy/tango-mlflow/issues/new"
+                ),
             )
 
         try:
