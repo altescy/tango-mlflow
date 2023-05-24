@@ -16,7 +16,7 @@ python = ">=3.8.1,<4.0"
 ai2-tango = "^1.0.0"
 mlflow = ">=1.28,<3.0"
 optuna = {version = "^3.0.5", optional = true}
-torch = {version = "^2.0.0", optional = true}
+torch = {version = ">=1.9,<2.1", optional = true}
 flax = {version = "^0.6.8", optional = true}
 
 [tool.poetry.dev-dependencies]
