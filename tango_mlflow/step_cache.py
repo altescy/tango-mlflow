@@ -3,7 +3,7 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, cast
 
 import mlflow
 from mlflow.entities import Run as MLFlowRun
@@ -17,6 +17,7 @@ from tango.step_cache import CacheMetadata, StepCache
 from tango.step_caches.local_step_cache import LocalStepCache
 from tango.step_info import StepInfo
 
+from tango_mlflow.format import MLFlowFormat
 from tango_mlflow.util import (
     RunKind,
     get_mlflow_local_artifact_storage_path,
@@ -66,6 +67,9 @@ class MLFlowStepCache(LocalStepCache):
         step: Union[Step, StepInfo],
         objects_dir: Optional[PathOrStr] = None,
     ) -> None:
+        if isinstance(step, StepInfo):
+            step = cast(Step, Step.by_name(step.step_class_name))
+
         mlflow_run = get_mlflow_run_by_tango_step(
             self.mlflow_client,
             self.experiment_name,
@@ -76,6 +80,9 @@ class MLFlowStepCache(LocalStepCache):
 
         if objects_dir is not None:
             self.mlflow_client.log_artifacts(mlflow_run.info.run_id, objects_dir)
+
+        if isinstance(step, Step) and isinstance(step.FORMAT, MLFlowFormat):
+            step.FORMAT.mlflow_callback(self.mlflow_client, mlflow_run)
 
     def _acquire_step_lock_file(
         self,
