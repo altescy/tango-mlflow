@@ -65,7 +65,7 @@ export MLFLOW_TRACKING_URI=https://mlflow.example.com
 
 ### Logging metrics into MLflow
 
-The `tango-mlflow` package provides the `MLflowStep` class, which allows you to easily log the results of each step execution to MLflow.
+The `tango-mlflow` package provides the `MlflowStep` class, which allows you to easily log the results of each step execution to MLflow.
 
 ```python
 from tango_mlflow.step import MlflowStep
@@ -85,10 +85,10 @@ class TrainModel(MlflowStep):
         # post-process...
 ```
 
-In the example above, the `TrainModel` step inherits from `MLflowStep`.
+In the example above, the `TrainModel` step inherits from `MlflowStep`.
 Inside the step, you can directly record metrics to the corresponding MLflow run by invoking `self.mlflow_logger.log_metric(...)`.
 
-Please note, this functionality must be used in conjunction with `MLFlowWorkspace`.
+Please note, this functionality must be used in conjunction with `MlflowWorkspace`.
 
 ### Summarizing Tango run metrics
 
@@ -108,7 +108,7 @@ In the example above, the `EvaluateModel` step returns metrics that are logged a
 
 Please note the following requirements:
 - The return value of a step where `MLFLOW_SUMMARY = True` is set must always be `dict[str, float]`.
-- You don't necessarily need to inherit from `MLflowStep` to use `MLFLOW_SUMMARY`.
+- You don't necessarily need to inherit from `MlflowStep` to use `MLFLOW_SUMMARY`.
 
 ### Tuning hyperparameters with Optuna
 
