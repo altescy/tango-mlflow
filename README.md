@@ -68,9 +68,9 @@ export MLFLOW_TRACKING_URI=https://mlflow.example.com
 The `tango-mlflow` package provides the `MLflowStep` class, which allows you to easily log the results of each step execution to MLflow.
 
 ```python
-from tango_mlflow.step import MLflowStep
+from tango_mlflow.step import MlflowStep
 
-class TrainModel(MLflowStep):
+class TrainModel(MlflowStep):
     def run(self, **params):
 
         # pre-process...
