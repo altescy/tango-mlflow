@@ -185,7 +185,7 @@ class TableFormat(Format[T_TableFormattable]):
             table = json.load(f)
         metadata = table.pop(self._METADATA_FIELD, {})
         if metadata["type"] == "pandas":
-            return cast(T_TableFormattable, pandas.DataFrame(table))
+            return cast(T_TableFormattable, pandas.DataFrame(**table))
         elif metadata["type"] == "mapping":
             return cast(T_TableFormattable, table)
         elif metadata["type"].startswith("sequence:"):
@@ -203,7 +203,6 @@ class TableFormat(Format[T_TableFormattable]):
         return self._FILENAME
 
     def mlflow_callback(self, client: MlflowClient, run: MLFlowRun) -> None:
-        print("mlflow_callback", "setting tag")
         client.set_tag(
             run.info.run_id,
             MLFLOW_LOGGED_ARTIFACTS,
