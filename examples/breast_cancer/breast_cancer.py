@@ -5,7 +5,7 @@ import numpy
 import tango
 from tango.common import Registrable
 
-from tango_mlflow.step import MLflowStep
+from tango_mlflow.step import MlflowStep
 
 
 class Model(abc.ABC, Registrable):
@@ -169,7 +169,7 @@ class Preprocess(tango.Step):
 
 
 @tango.Step.register("train_model")
-class TrainModel(MLflowStep):
+class TrainModel(MlflowStep):
     def run(  # type: ignore[override]
         self,
         dataset: Tuple[numpy.ndarray, numpy.ndarray],
@@ -190,7 +190,7 @@ class TrainModel(MLflowStep):
 
 
 @tango.Step.register("train_preprocessor")
-class TrainPreprocessor(MLflowStep):
+class TrainPreprocessor(MlflowStep):
     def run(  # type: ignore[override]
         self,
         dataset: Tuple[numpy.ndarray, numpy.ndarray],

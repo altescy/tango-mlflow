@@ -9,7 +9,7 @@ from mlflow.utils.mlflow_tags import MLFLOW_RUN_NAME
 from tango.common.exceptions import IntegrationMissingError
 
 from tango_mlflow.util import RunKind, flatten_dict, get_mlflow_run_by_tango_step, get_timestamp
-from tango_mlflow.workspace import MLFlowWorkspace
+from tango_mlflow.workspace import MlflowWorkspace
 
 with suppress(ModuleNotFoundError, IntegrationMissingError):
     import jax
@@ -17,7 +17,7 @@ with suppress(ModuleNotFoundError, IntegrationMissingError):
     from tango.integrations.flax.train_callback import TrainCallback
 
     @TrainCallback.register("mlflow::log_flax")
-    class MLFlowFlaxTrainCallback(TrainCallback):
+    class MlflowFlaxTrainCallback(TrainCallback):
         def __init__(
             self,
             *args: Any,
@@ -29,7 +29,7 @@ with suppress(ModuleNotFoundError, IntegrationMissingError):
         ) -> None:
             super().__init__(*args, **kwargs)
 
-            if isinstance(self.workspace, MLFlowWorkspace):
+            if isinstance(self.workspace, MlflowWorkspace):
                 experiment_name = experiment_name or self.workspace.experiment_name
                 tracking_uri = tracking_uri or self.workspace.mlflow_tracking_uri
 
@@ -46,13 +46,13 @@ with suppress(ModuleNotFoundError, IntegrationMissingError):
 
         @property
         def mlflow_client(self) -> mlflow.tracking.MlflowClient:
-            if isinstance(self.workspace, MLFlowWorkspace):
+            if isinstance(self.workspace, MlflowWorkspace):
                 return self.workspace.mlflow_client
             return mlflow.tracking.MlflowClient(tracking_uri=self.tracking_uri)
 
         def ensure_mlflow_run(self) -> MlflowRun:
             if self.mlflow_run is None:
-                raise RuntimeError("MLFlow run not initialized")
+                raise RuntimeError("Mlflow run not initialized")
             return self.mlflow_run
 
         def state_dict(self) -> Dict[str, Any]:
@@ -62,8 +62,8 @@ with suppress(ModuleNotFoundError, IntegrationMissingError):
             self.resume = "allow"
 
         def pre_train_loop(self) -> None:
-            if isinstance(self.workspace, MLFlowWorkspace):
-                # Use existing MLFlow run created by the MLFlowWorkspace
+            if isinstance(self.workspace, MlflowWorkspace):
+                # Use existing Mlflow run created by the MlflowWorkspace
                 self.mlflow_run = get_mlflow_run_by_tango_step(
                     self.mlflow_client,
                     experiment=self.experiment_name,
@@ -71,9 +71,9 @@ with suppress(ModuleNotFoundError, IntegrationMissingError):
                     additional_filter_string="attributes.status = 'RUNNING'",
                 )
                 if self.mlflow_run is None:
-                    raise RuntimeError(f"Could not find a running MLFlow run for step {self.step_id}")
+                    raise RuntimeError(f"Could not find a running Mlflow run for step {self.step_id}")
             else:
-                # Create a new MLFlow run and log the config
+                # Create a new Mlflow run and log the config
                 self.mlflow_run = self.mlflow_client.create_run(
                     experiment_id=mlflow.get_experiment_by_name(self.experiment_name).experiment_id,
                     tags=context_registry.resolve_tags(
@@ -93,8 +93,8 @@ with suppress(ModuleNotFoundError, IntegrationMissingError):
                 self.mlflow_client.log_batch(self.mlflow_run.info.run_id, metrics=metrics)
 
         def post_train_loop(self, step: int, epoch: int) -> None:
-            if isinstance(self.workspace, MLFlowWorkspace):
-                # We don't need to do anything here, as the MLFlow run will be closed by the MLFlowWorkspace
+            if isinstance(self.workspace, MlflowWorkspace):
+                # We don't need to do anything here, as the Mlflow run will be closed by the MlflowWorkspace
                 return
             mlflow_run = self.ensure_mlflow_run()
             self.mlflow_client.set_terminated(mlflow_run.info.run_id)

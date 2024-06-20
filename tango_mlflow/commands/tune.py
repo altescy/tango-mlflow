@@ -25,7 +25,7 @@ from tango_mlflow.util import (
     get_mlflow_run_by_tango_run,
     is_all_child_run_finished,
 )
-from tango_mlflow.workspace import MLFlowWorkspace
+from tango_mlflow.workspace import MlflowWorkspace
 
 logger = getLogger(__name__)
 
@@ -193,7 +193,7 @@ class TuneCommand(Subcommand):
             )
 
             workspace = Workspace.from_params(Params(tango_settings.workspace or {}))
-            assert isinstance(workspace, MLFlowWorkspace)
+            assert isinstance(workspace, MlflowWorkspace)
 
             mlflow_run = get_mlflow_run_by_tango_run(
                 workspace.mlflow_client,
@@ -201,7 +201,7 @@ class TuneCommand(Subcommand):
                 tango_run=run_name,
             )
             if mlflow_run is None:
-                raise RuntimeError(f"Could not find MLFlow run for tango run {run_name}")
+                raise RuntimeError(f"Could not find MLflow run for tango run {run_name}")
 
             if mlflow_run.info.status == "RUNNING":
                 status = (
@@ -244,7 +244,7 @@ class TuneCommand(Subcommand):
         )
 
         workspace = Workspace.from_params(tango_settings.workspace or {})
-        if not isinstance(workspace, MLFlowWorkspace):
+        if not isinstance(workspace, MlflowWorkspace):
             raise ValueError("Tango workspace type must be mlflow.")
 
         optuna_settings = OptunaSettings.from_args(args)

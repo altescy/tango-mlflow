@@ -23,7 +23,7 @@ from typing import (
 
 import dacite
 import pandas
-from mlflow.entities import Run as MLFlowRun
+from mlflow.entities import Run as MlflowRun
 from mlflow.tracking import MlflowClient
 from mlflow.utils.mlflow_tags import MLFLOW_LOGGED_ARTIFACTS
 from tango.common import PathOrStr
@@ -31,11 +31,11 @@ from tango.format import Format, JsonFormat, JsonFormatIterator
 
 
 @runtime_checkable
-class MLFlowFormat(Protocol):
+class MlflowFormat(Protocol):
     def get_mlflow_artifact_path(self) -> str:
         ...
 
-    def mlflow_callback(self, client: MlflowClient, run: MLFlowRun) -> None:
+    def mlflow_callback(self, client: MlflowClient, run: MlflowRun) -> None:
         ...
 
 
@@ -203,7 +203,7 @@ class TableFormat(Format[T_TableFormattable], Generic[T_TableFormattable]):
     def get_mlflow_artifact_path(self) -> str:
         return self._FILENAME
 
-    def mlflow_callback(self, client: MlflowClient, run: MLFlowRun) -> None:
+    def mlflow_callback(self, client: MlflowClient, run: MlflowRun) -> None:
         client.set_tag(
             run.info.run_id,
             MLFLOW_LOGGED_ARTIFACTS,

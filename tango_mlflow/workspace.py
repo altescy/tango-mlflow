@@ -10,7 +10,7 @@ from urllib.parse import ParseResult, parse_qs, quote
 
 import mlflow
 import pytz  # type: ignore
-from mlflow.entities import Run as MLFlowRun
+from mlflow.entities import Run as MlflowRun
 from mlflow.tracking.client import MlflowClient
 from mlflow.utils.mlflow_tags import MLFLOW_RUN_NAME
 from tango.common.exceptions import StepStateError
@@ -22,8 +22,8 @@ from tango.step_cache import StepCache
 from tango.step_info import StepInfo, StepState
 from tango.workspace import Run, Workspace
 
-from tango_mlflow.step import MLflowStep, MLflowSummaryStep
-from tango_mlflow.step_cache import MLFlowStepCache
+from tango_mlflow.step import MlflowStep, MlflowSummaryStep
+from tango_mlflow.step_cache import MlflowStepCache
 from tango_mlflow.util import (
     RunKind,
     add_mlflow_run_of_tango_run,
@@ -41,7 +41,7 @@ T = TypeVar("T")
 
 
 @Workspace.register("mlflow")
-class MLFlowWorkspace(Workspace):
+class MlflowWorkspace(Workspace):
     def __init__(
         self,
         experiment_name: str,
@@ -51,7 +51,7 @@ class MLFlowWorkspace(Workspace):
         mlflow.set_experiment(experiment_name)
         super().__init__()  # type: ignore[no-untyped-call]
         self.experiment_name = experiment_name
-        self.cache = MLFlowStepCache(experiment_name=self.experiment_name)
+        self.cache = MlflowStepCache(experiment_name=self.experiment_name)
         self.steps_dir = tango_cache_dir() / "mlflow_workspace"
         self.locks: Dict[Step, FileLock] = {}
         self._running_step_info: Dict[str, StepInfo] = {}
@@ -78,7 +78,7 @@ class MLFlowWorkspace(Workspace):
         return url
 
     @classmethod
-    def from_parsed_url(cls, parsed_url: ParseResult) -> "MLFlowWorkspace":
+    def from_parsed_url(cls, parsed_url: ParseResult) -> "MlflowWorkspace":
         queries = parse_qs(parsed_url.query)
         experiment_name = parsed_url.netloc
         tags: Dict[str, Any] = {}
@@ -192,11 +192,11 @@ class MLFlowWorkspace(Workspace):
                 step_info=step_info,
             )
 
-            if isinstance(step, MLflowStep):
+            if isinstance(step, MlflowStep):
                 step.setup_mlflow(mlflow_run)
 
             logger.info(
-                "Tracking '%s' step on MLflow: %s/#/experiments/%s/runs/%s",
+                "Tracking '%s' step on Mlflow: %s/#/experiments/%s/runs/%s",
                 step.name,
                 self.mlflow_tracking_uri,
                 mlflow_run.info.experiment_id,
@@ -213,7 +213,7 @@ class MLFlowWorkspace(Workspace):
         mlflow_run = get_mlflow_run_by_tango_step(self.mlflow_client, self.experiment_name, step)
         if mlflow_run is None:
             raise RuntimeError(
-                f"{self.__class__.__name__}.step_finished() called outside of a MLflow run. "
+                f"{self.__class__.__name__}.step_finished() called outside of a Mlflow run. "
                 f"Did you forget to call {self.__class__.__name__}.step_starting() first?"
             )
 
@@ -242,7 +242,7 @@ class MLFlowWorkspace(Workspace):
             )
 
             # Log the result of summary step to a parent mlflow run
-            if isinstance(step, MLflowSummaryStep) and step.MLFLOW_SUMMARY:
+            if isinstance(step, MlflowSummaryStep) and step.MLFLOW_SUMMARY:
                 if not isinstance(result, dict):
                     raise ValueError(
                         f"Result value of Step {step.name} with MLFLOW_SUMMARY=True"
@@ -256,7 +256,7 @@ class MLFlowWorkspace(Workspace):
                 )
                 if mlflow_run_of_tang_run is None:
                     raise RuntimeError(
-                        f"Could not find MLflow run for Tango run {self._step_id_to_run_name[step.unique_id]}"
+                        f"Could not find Mlflow run for Tango run {self._step_id_to_run_name[step.unique_id]}"
                     )
 
                 for key, value in flatten_dict({step.name: result}).items():
@@ -278,7 +278,7 @@ class MLFlowWorkspace(Workspace):
         )
         if mlflow_run is None:
             raise RuntimeError(
-                f"{self.__class__.__name__}.step_finished() called outside of a MLflow run. "
+                f"{self.__class__.__name__}.step_finished() called outside of a Mlflow run. "
                 f"Did you forget to call {self.__class__.__name__}.step_starting() first?"
             )
 
@@ -316,7 +316,7 @@ class MLFlowWorkspace(Workspace):
             mlflow_tags=self._mlflow_tags,
         )
 
-        logger.info("Registring run %s with MLflow", name)
+        logger.info("Registring run %s with Mlflow", name)
         logger.info(
             "View run at: %s/#/experiments/%s/runs/%s",
             self.mlflow_tracking_uri,
@@ -379,7 +379,7 @@ class MLFlowWorkspace(Workspace):
             raise KeyError(f"Run '{name}' not found in workspace")
         return self._get_tango_run_by_mlflow_run(mlflow_run)
 
-    def _get_tango_run_by_mlflow_run(self, mlflow_run: MLFlowRun) -> Run:
+    def _get_tango_run_by_mlflow_run(self, mlflow_run: MlflowRun) -> Run:
         step_name_to_info: Dict[str, StepInfo] = {}
         with tempfile.TemporaryDirectory() as temp_dir:
             artifact_path = Path(
@@ -407,7 +407,7 @@ class MLFlowWorkspace(Workspace):
         )
 
     def _get_updated_step_info(self, step_id: str, step_name: Optional[str] = None) -> Optional[StepInfo]:
-        def load_step_info(mlflow_run: MLFlowRun) -> StepInfo:
+        def load_step_info(mlflow_run: MlflowRun) -> StepInfo:
             with tempfile.TemporaryDirectory() as temp_dir:
                 path = mlflow.artifacts.download_artifacts(
                     run_id=mlflow_run.info.run_id,
@@ -434,7 +434,7 @@ class MLFlowWorkspace(Workspace):
                     step_info.error = "Exception"
             return step_info
 
-        def load_step_info_dict(mlflow_run: MLFlowRun) -> Dict[str, Any]:
+        def load_step_info_dict(mlflow_run: MlflowRun) -> Dict[str, Any]:
             with tempfile.TemporaryDirectory() as temp_dir:
                 path = mlflow.artifacts.download_artifacts(
                     run_id=mlflow_run.info.run_id,

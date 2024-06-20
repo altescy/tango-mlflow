@@ -6,8 +6,8 @@ from urllib.parse import urlencode, urlparse
 
 import mlflow
 import petname
-from mlflow.entities import Experiment as MLFlowExperiment
-from mlflow.entities import Run as MLFlowRun
+from mlflow.entities import Experiment as MlflowExperiment
+from mlflow.entities import Run as MlflowRun
 from mlflow.tracking import artifact_utils
 from mlflow.tracking.client import MlflowClient
 from mlflow.tracking.context import registry as context_registry
@@ -45,16 +45,16 @@ def get_timestamp() -> int:
 
 
 def is_mlflow_using_local_artifact_storage(
-    mlflow_run: Union[str, MLFlowRun],
+    mlflow_run: Union[str, MlflowRun],
 ) -> bool:
-    mlflow_run_id = mlflow_run.info.run_id if isinstance(mlflow_run, MLFlowRun) else mlflow_run
+    mlflow_run_id = mlflow_run.info.run_id if isinstance(mlflow_run, MlflowRun) else mlflow_run
     return str(artifact_utils.get_artifact_uri(run_id=mlflow_run_id)).startswith("file")
 
 
 def get_mlflow_local_artifact_storage_path(
-    mlflow_run: Union[str, MLFlowRun],
+    mlflow_run: Union[str, MlflowRun],
 ) -> Optional[Path]:
-    mlflow_run_id = mlflow_run.info.run_id if isinstance(mlflow_run, MLFlowRun) else mlflow_run
+    mlflow_run_id = mlflow_run.info.run_id if isinstance(mlflow_run, MlflowRun) else mlflow_run
     mlflow_artifact_uri = urlparse(artifact_utils.get_artifact_uri(run_id=mlflow_run_id))
     if mlflow_artifact_uri.scheme == "file":
         return Path(mlflow_artifact_uri.path)
@@ -86,10 +86,10 @@ def build_filter_string(
 
 def get_mlflow_run_by_tango_step(
     mlflow_client: MlflowClient,
-    experiment: Union[str, MLFlowExperiment],
+    experiment: Union[str, MlflowExperiment],
     tango_step: Union[str, Step, StepInfo],
     additional_filter_string: Optional[str] = None,
-) -> Optional[MLFlowRun]:
+) -> Optional[MlflowRun]:
     if isinstance(experiment, str):
         experiment = mlflow_client.get_experiment_by_name(experiment)
 
@@ -110,10 +110,10 @@ def get_mlflow_run_by_tango_step(
 
 def get_mlflow_run_by_tango_run(
     mlflow_client: MlflowClient,
-    experiment: Union[str, MLFlowExperiment],
+    experiment: Union[str, MlflowExperiment],
     tango_run: Union[str, TangoRun],
     additional_filter_string: Optional[str] = None,
-) -> Optional[MLFlowRun]:
+) -> Optional[MlflowRun]:
     if isinstance(experiment, str):
         experiment = mlflow.get_experiment_by_name(experiment)
 
@@ -139,16 +139,16 @@ def get_mlflow_run_by_tango_run(
 
 def get_mlflow_runs(
     mlflow_client: MlflowClient,
-    experiment: Union[str, MLFlowExperiment],
+    experiment: Union[str, MlflowExperiment],
     run_kind: Optional[RunKind] = None,
     tang_run: Optional[Union[str, TangoRun]] = None,
     tango_step: Optional[Union[str, Step, StepInfo]] = None,
     additional_filter_string: Optional[str] = None,
-) -> List[MLFlowRun]:
+) -> List[MlflowRun]:
     if isinstance(experiment, str):
         experiment = mlflow.get_experiment_by_name(experiment)
 
-    mlflow_runs: List[MLFlowRun] = []
+    mlflow_runs: List[MlflowRun] = []
     page_token: Optional[str] = None
     while True:
         matching_runs = mlflow_client.search_runs(
@@ -171,7 +171,7 @@ def get_mlflow_runs(
 
 def generate_unique_run_name(
     mlflow_client: MlflowClient,
-    experiment: Union[str, MLFlowExperiment],
+    experiment: Union[str, MlflowExperiment],
 ) -> str:
     if isinstance(experiment, str):
         experiment = mlflow.get_experiment_by_name(experiment)
@@ -183,11 +183,11 @@ def generate_unique_run_name(
 
 def add_mlflow_run_of_tango_run(
     mlflow_client: MlflowClient,
-    experiment: Union[str, MLFlowExperiment],
+    experiment: Union[str, MlflowExperiment],
     steps: Set[Step],
     run_name: Optional[str] = None,
     mlflow_tags: Optional[Dict[str, str]] = None,
-) -> MLFlowRun:
+) -> MlflowRun:
     if isinstance(experiment, str):
         experiment = mlflow.get_experiment_by_name(experiment)
 
@@ -254,10 +254,10 @@ def add_mlflow_run_of_tango_run(
 
 def add_mlflow_run_of_tango_step(
     mlflow_client: MlflowClient,
-    experiment: Union[str, MLFlowExperiment],
+    experiment: Union[str, MlflowExperiment],
     tango_run: Union[str, TangoRun],
     step_info: StepInfo,
-) -> MLFlowRun:
+) -> MlflowRun:
     if isinstance(experiment, str):
         experiment = mlflow.get_experiment_by_name(experiment)
 
@@ -302,7 +302,7 @@ def add_mlflow_run_of_tango_step(
 
 def terminate_mlflow_run_of_tango_step(
     mlflow_client: MlflowClient,
-    experiment: Union[str, MLFlowExperiment],
+    experiment: Union[str, MlflowExperiment],
     status: str,
     step_info: StepInfo,
 ) -> None:
@@ -311,7 +311,7 @@ def terminate_mlflow_run_of_tango_step(
 
     mlflow_run = get_mlflow_run_by_tango_step(mlflow_client, experiment, step_info)
     if mlflow_run is None:
-        raise ValueError(f"Could not find MLFlow run for step {step_info.unique_id}")
+        raise ValueError(f"Could not find Mlflow run for step {step_info.unique_id}")
 
     mlflow_client.log_dict(
         run_id=mlflow_run.info.run_id,
@@ -327,10 +327,10 @@ def terminate_mlflow_run_of_tango_step(
 
 def is_all_child_run_finished(
     mlflow_client: MlflowClient,
-    experiment: Union[str, MLFlowExperiment],
-    mlflow_run: Union[str, MLFlowRun],
+    experiment: Union[str, MlflowExperiment],
+    mlflow_run: Union[str, MlflowRun],
 ) -> bool:
-    run_id = mlflow_run.info.run_id if isinstance(mlflow_run, MLFlowRun) else mlflow_run
+    run_id = mlflow_run.info.run_id if isinstance(mlflow_run, MlflowRun) else mlflow_run
 
     for child_run in get_mlflow_runs(
         mlflow_client,
