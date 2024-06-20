@@ -1,6 +1,15 @@
+import dataclasses
+from typing import Any, Dict, List
+
 from tango.common.testing import TangoTestCase
 
-from tango_mlflow.format import CsvFormat
+from tango_mlflow.format import CsvFormat, TableFormat
+
+
+@dataclasses.dataclass
+class Data:
+    a: str
+    b: int
 
 
 class TestFormat(TangoTestCase):
@@ -24,3 +33,21 @@ class TestFormat(TangoTestCase):
         format.write(l1, self.TEST_DIR)
         l2 = format.read(self.TEST_DIR)
         assert list(l2) == data
+
+    def test_mapping_table_format(self) -> None:
+        data = {
+            "columns": ["a", "b"],
+            "data": [["x", 1], ["y", 2]],
+        }
+        format = TableFormat[Dict[str, Any]]()
+        format.write(data, self.TEST_DIR)
+        assert format.read(self.TEST_DIR) == data
+
+    def test_dataclass_table_format(self) -> None:
+        data = [
+            Data("x", 1),
+            Data("y", 2),
+        ]
+        format = TableFormat[List[Data]]()
+        format.write(data, self.TEST_DIR)
+        assert format.read(self.TEST_DIR) == data
