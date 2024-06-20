@@ -7,7 +7,7 @@ from tango.common import util
 from tango.common.testing import TangoTestCase
 from tango.workspace import Workspace
 
-from tango_mlflow.workspace import MLFlowWorkspace
+from tango_mlflow.workspace import MlflowWorkspace
 
 MLFLOW_EXPERIMENT_NAME = "tango-mlflow-testing"
 
@@ -32,7 +32,7 @@ class TestMlflowWorkspace(TangoTestCase):
         ],
     )
     def test_pickle_workspace(self, protocol: int) -> None:
-        workspace = MLFlowWorkspace(experiment_name=MLFLOW_EXPERIMENT_NAME)
+        workspace = MlflowWorkspace(experiment_name=MLFLOW_EXPERIMENT_NAME)
         unpickled_workspace = pickle.loads(pickle.dumps(workspace, protocol=protocol))
         assert unpickled_workspace.mlflow_client is not None
         assert unpickled_workspace.experiment_name == workspace.experiment_name
@@ -40,5 +40,5 @@ class TestMlflowWorkspace(TangoTestCase):
 
     def test_from_url(self) -> None:
         workspace = Workspace.from_url(f"mlflow://{MLFLOW_EXPERIMENT_NAME}")
-        assert isinstance(workspace, MLFlowWorkspace)
+        assert isinstance(workspace, MlflowWorkspace)
         assert workspace.experiment_name == MLFLOW_EXPERIMENT_NAME

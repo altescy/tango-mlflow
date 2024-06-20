@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Optional, Union, cast
 
 import mlflow
-from mlflow.entities import Run as MLFlowRun
+from mlflow.entities import Run as MlflowRun
 from mlflow.tracking.client import MlflowClient
 from tango.common.aliases import PathOrStr
 from tango.common.file_lock import AcquireReturnProxy, FileLock
@@ -17,7 +17,7 @@ from tango.step_cache import CacheMetadata, StepCache
 from tango.step_caches.local_step_cache import LocalStepCache
 from tango.step_info import StepInfo
 
-from tango_mlflow.format import MLFlowFormat
+from tango_mlflow.format import MlflowFormat
 from tango_mlflow.util import (
     RunKind,
     get_mlflow_local_artifact_storage_path,
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 @StepCache.register("mlflow")
-class MLFlowStepCache(LocalStepCache):
+class MlflowStepCache(LocalStepCache):
     def __init__(self, experiment_name: str) -> None:
         super().__init__(tango_cache_dir() / "mlflow_cache")
         self.experiment_name = experiment_name
@@ -54,7 +54,7 @@ class MLFlowStepCache(LocalStepCache):
 
         return mlflow_local_artifact_storage_path
 
-    def get_step_result_mlflow_run(self, step: Union[Step, StepInfo]) -> Optional[MLFlowRun]:
+    def get_step_result_mlflow_run(self, step: Union[Step, StepInfo]) -> Optional[MlflowRun]:
         return get_mlflow_run_by_tango_step(
             self.mlflow_client,
             self.experiment_name,
@@ -81,7 +81,7 @@ class MLFlowStepCache(LocalStepCache):
         if objects_dir is not None:
             self.mlflow_client.log_artifacts(mlflow_run.info.run_id, objects_dir)
 
-        if isinstance(step, Step) and isinstance(step.FORMAT, MLFlowFormat):
+        if isinstance(step, Step) and isinstance(step.FORMAT, MlflowFormat):
             step.FORMAT.mlflow_callback(self.mlflow_client, mlflow_run)
 
     def _acquire_step_lock_file(
