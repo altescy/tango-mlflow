@@ -1,10 +1,10 @@
 import dataclasses
-from typing import Any, Dict, List
+from typing import Any, Dict, Iterator, List
 
 import pandas
 from tango.common.testing import TangoTestCase
 
-from tango_mlflow.format import CsvFormat, TableFormat
+from tango_mlflow.format import CsvFormat, DaciteJsonFormat, TableFormat
 
 
 @dataclasses.dataclass
@@ -63,3 +63,14 @@ class TestFormat(TangoTestCase):
         format = TableFormat[pandas.DataFrame]()
         format.write(data, self.TEST_DIR)
         assert format.read(self.TEST_DIR).equals(data)
+
+    def test_dataclass_dacite_json_format(self) -> None:
+        data = [
+            Data("x", 1),
+            Data("y", 2),
+        ]
+        l1 = iter(data)
+        format = DaciteJsonFormat[Iterator[Data]]()
+        format.write(l1, self.TEST_DIR)
+        l2 = format.read(self.TEST_DIR)
+        assert list(l2) == data

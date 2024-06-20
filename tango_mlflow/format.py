@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import (
     Any,
     Dict,
+    Generic,
     Iterable,
     Mapping,
     Optional,
@@ -26,7 +27,7 @@ from mlflow.entities import Run as MLFlowRun
 from mlflow.tracking import MlflowClient
 from mlflow.utils.mlflow_tags import MLFLOW_LOGGED_ARTIFACTS
 from tango.common import PathOrStr
-from tango.format import Format
+from tango.format import Format, JsonFormat, JsonFormatIterator
 
 
 @runtime_checkable
@@ -112,7 +113,7 @@ T_TableFormattable = TypeVar(
 )
 
 
-class TableFormat(Format[T_TableFormattable]):
+class TableFormat(Format[T_TableFormattable], Generic[T_TableFormattable]):
     _FILENAME = "data.json"
     _METADATA_FIELD = "@@METADATA@@"
 
@@ -208,3 +209,52 @@ class TableFormat(Format[T_TableFormattable]):
             MLFLOW_LOGGED_ARTIFACTS,
             f'[{{"path": "{self.get_mlflow_artifact_path()}", "type": "table"}}]',
         )
+
+
+T = TypeVar("T")
+
+
+class DaciteJsonFormat(JsonFormat[T], Generic[T]):
+    _TYPE_FIELD = "@@TYPE@@"
+
+    class _Empty:
+        ...
+
+    def _inspect_type(self, x: type) -> str:
+        return f"{x.__module__}.{x.__name__}"
+
+    def _get_type(self, x: str) -> Any:
+        module_name, type_name = x.rsplit(".", 1)
+        module = importlib.import_module(module_name)
+        return getattr(module, type_name)
+
+    def _convert_to_json(self, o: Any) -> Mapping[str, Any]:
+        if isinstance(o, Mapping):
+            return o
+        if dataclasses.is_dataclass(o):
+            data = dataclasses.asdict(o)
+            assert self._TYPE_FIELD not in data
+            data[self._TYPE_FIELD] = self._inspect_type(type(o))
+            return data
+        raise ValueError(f"Cannot convert {type(o)}")
+
+    def _restore_from_json(self, o: Dict[str, Any]) -> Any:
+        item_type = o.pop(self._TYPE_FIELD, None)
+        if not item_type:
+            return o
+        item_class = self._get_type(item_type)
+        return dacite.from_dict(item_class, o)
+
+    def write(self, artifact: T, dir: PathOrStr) -> None:
+        if hasattr(artifact, "__next__"):
+            artifact = map(self._convert_to_json, artifact)  # type: ignore[call-overload]
+        else:
+            artifact = self._convert_to_json(artifact)  # type: ignore[assignment]
+        super().write(artifact, dir)
+
+    def read(self, dir: PathOrStr) -> T:
+        artifact = super().read(dir)
+        if isinstance(artifact, JsonFormatIterator):
+            return cast(T, map(self._restore_from_json, artifact))
+        assert isinstance(artifact, dict)
+        return cast(T, self._restore_from_json(artifact))
