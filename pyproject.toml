@@ -15,33 +15,30 @@ tango-mlflow = "tango_mlflow.__main__:run"
 python = ">=3.8.1,<4.0"
 ai2-tango = "^1.0.0"
 mlflow = ">=1.28,<3.0"
-optuna = {version = "^3.0.5", optional = true}
-torch = {version = ">=1.9,<2.1", optional = true}
-flax = {version = "^0.6.8", optional = true}
+optuna = {version = ">=3.0,<4.0", optional = true}
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 python-language-server = "^0.36.2"
-pytest = "^7.3.1"
-pysen = "^0.10.4"
-black = "^23.3.0"
-isort = "^5.12.0"
+pytest = "^7.4.4"
+pysen = "^0.11.0"
+black = "^23.12.1"
+isort = "^5.13.2"
 flake8 = "^5.0.4"
-mypy = "^1.2.0"
+mypy = "^1.10.0"
 llvmlite = "^0.40.0"
 numba = "^0.57.0"
+torch = {version = ">=1.9,<2.1", optional = true}
+jax = {version = "^0.4.8", extras = ["cpu"]}
+flax = {version = "^0.6.8", optional = true}
+datasets = "^2.11.0"
+urllib3 = "<2"
 
 [tool.poetry.extras]
 optuna = ["optuna"]
-torch = ["torch"]
-flax = ["flax"]
-all = ["optuna", "torch", "flax"]
-
-[tool.poetry.group.dev.dependencies]
-jax = {version = "^0.4.8", extras = ["cpu"]}
-datasets = "^2.11.0"
+all = ["optuna"]
 
 [tool.pysen]
-version = "0.10"
+version = "0.11"
 
 [tool.pysen-cli]
 settings_dir = "."
